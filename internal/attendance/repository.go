@@ -18,11 +18,17 @@ type Repository struct {
 }
 
 func NewRepository(db *sql.DB) *Repository {
-	return &Repository{DB: db}
+	return &Repository{
+		DB: db,
+	}
 }
 
 // ClockIn inserts today's attendance record.
-func (r *Repository) ClockIn(ctx context.Context, employeeID string) error {
+func (r *Repository) ClockIn(
+	ctx context.Context,
+	employeeID string,
+) error {
+
 	now := time.Now()
 
 	employeeUUID, err := uuid.Parse(employeeID)
@@ -39,7 +45,11 @@ func (r *Repository) ClockIn(ctx context.Context, employeeID string) error {
 		table.Attendance.UpdatedAt,
 	).VALUES(
 		employeeUUID,
-		Date(now.Year(), now.Month(), now.Day()),
+		Date(
+			now.Year(),
+			now.Month(),
+			now.Day(),
+		),
 		now,
 		"Present",
 		now,
@@ -56,7 +66,11 @@ func (r *Repository) ClockIn(ctx context.Context, employeeID string) error {
 
 // ClockOut updates today's attendance record
 // with checkout time and updatedAt.
-func (r *Repository) ClockOut(ctx context.Context, employeeID string) error {
+func (r *Repository) ClockOut(
+	ctx context.Context,
+	employeeID string,
+) error {
+
 	now := time.Now()
 
 	employeeUUID, err := uuid.Parse(employeeID)
@@ -71,17 +85,35 @@ func (r *Repository) ClockOut(ctx context.Context, employeeID string) error {
 		now,
 		now,
 	).WHERE(
-		table.Attendance.EmployeeId.EQ(UUID(employeeUUID)).
+		table.Attendance.EmployeeId.EQ(
+			UUID(employeeUUID),
+		).
 			AND(
 				table.Attendance.Date.EQ(
-					Date(now.Year(), now.Month(), now.Day()),
+					Date(
+						now.Year(),
+						now.Month(),
+						now.Day(),
+					),
 				),
 			),
 	)
 
-	_, err = stmt.ExecContext(ctx, r.DB)
+	result, err := stmt.ExecContext(ctx, r.DB)
 	if err != nil {
 		return fmt.Errorf("clock-out failed: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check clock-out result: %w", err)
+	}
+
+	if rows == 0 {
+		return fmt.Errorf(
+			"no attendance record found for employee %s today",
+			employeeID,
+		)
 	}
 
 	return nil
@@ -108,7 +140,9 @@ func (r *Repository) GetEmployeeHistory(
 	).FROM(
 		table.Attendance,
 	).WHERE(
-		table.Attendance.EmployeeId.EQ(UUID(employeeUUID)).
+		table.Attendance.EmployeeId.EQ(
+			UUID(employeeUUID),
+		).
 			AND(
 				table.Attendance.Date.BETWEEN(
 					Date(
@@ -129,7 +163,10 @@ func (r *Repository) GetEmployeeHistory(
 
 	err = stmt.QueryContext(ctx, r.DB, &records)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee attendance history: %w", err)
+		return nil, fmt.Errorf(
+			"failed to get employee attendance history: %w",
+			err,
+		)
 	}
 
 	return records, nil

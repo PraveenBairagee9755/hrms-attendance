@@ -2,7 +2,8 @@ package main
 
 import (
 	"log"
-	"net/http"
+
+	"github.com/gofiber/fiber/v2"
 
 	"hrms-attendance/db"
 	"hrms-attendance/internal/attendance"
@@ -23,18 +24,31 @@ func main() {
 	attendanceService := attendance.NewService(attendanceRepo)
 	attendanceHandler := attendance.NewHandler(attendanceService)
 
-	// 3. Register HTTP Routes
-	http.HandleFunc("/api/attendance/clock-in", attendanceHandler.ClockInHandler)
-	http.HandleFunc("/api/attendance/clock-out", attendanceHandler.ClockOutHandler)
+	// 3. Create Fiber application
+	app := fiber.New()
 
-	// Simple check route to confirm server is alive
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("HRMS Attendance Service is running perfectly!"))
+	// 4. Attendance routes
+	app.Post(
+		"/api/attendance/clock-in",
+		attendanceHandler.ClockInHandler,
+	)
+
+	app.Post(
+		"/api/attendance/clock-out",
+		attendanceHandler.ClockOutHandler,
+	)
+
+	// 5. Health check
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.SendString(
+			"HRMS Attendance Service is running perfectly!",
+		)
 	})
 
+	// 6. Start server
 	log.Println("Server starting on port :8080")
-	err = http.ListenAndServe(":8080", nil)
-	if err != nil {
+
+	if err := app.Listen(":8080"); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
