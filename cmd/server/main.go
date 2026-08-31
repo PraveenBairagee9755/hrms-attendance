@@ -8,19 +8,26 @@ import (
 	"hrms-attendance/db"
 	"hrms-attendance/internal/attendance"
 	"hrms-attendance/internal/leave"
+	"hrms-attendance/internal/salary"
 )
 
 func main() {
 	log.Println("Starting HRMS Attendance Server...")
 
-	// 1. Initialize database connection
+	// =========================================================
+	// DATABASE
+	// =========================================================
+
 	database, err := db.ConnectDB()
 	if err != nil {
 		log.Fatalf("Could not connect to database: %v", err)
 	}
 	defer database.Close()
 
-	// 2. Create Fiber application
+	// =========================================================
+	// FIBER
+	// =========================================================
+
 	app := fiber.New()
 
 	// =========================================================
@@ -31,10 +38,10 @@ func main() {
 	attendanceService := attendance.NewService(attendanceRepo)
 	attendanceHandler := attendance.NewHandler(attendanceService)
 
-	// Attendance routes
 	app.Post("/api/attendance/clock-in", attendanceHandler.ClockInHandler)
 
-	app.Post("/api/attendance/clock-out", attendanceHandler.ClockOutHandler)
+	app.Post(
+		"/api/attendance/clock-out", attendanceHandler.ClockOutHandler)
 
 	// =========================================================
 	// LEAVE MODULE
@@ -44,23 +51,27 @@ func main() {
 	leaveService := leave.NewService(leaveRepo)
 	leaveHandler := leave.NewHandler(leaveService)
 
-	// Get available leave types
 	app.Get("/api/leave/types", leaveHandler.GetLeaveTypesHandler)
 
-	// Apply for leave
 	app.Post("/api/leave/apply", leaveHandler.ApplyLeaveHandler)
 
-	// Employee leave history
 	app.Get("/api/leave/history/:employeeId", leaveHandler.GetEmployeeLeaveHistoryHandler)
 
-	// Cancel leave
 	app.Post("/api/leave/cancel/:id", leaveHandler.CancelLeaveHandler)
 
-	// Approve leave
 	app.Post("/api/leave/approve/:id", leaveHandler.ApproveLeaveHandler)
 
-	// Reject leave
 	app.Post("/api/leave/reject/:id", leaveHandler.RejectLeaveHandler)
+
+	// =========================================================
+	// SALARY MODULE
+	// =========================================================
+
+	salaryRepo := salary.NewRepository(database)
+	salaryService := salary.NewService(salaryRepo)
+	salaryHandler := salary.NewHandler(salaryService)
+
+	app.Get("/api/salary/calculate/:employeeId", salaryHandler.CalculateSalaryHandler)
 
 	// =========================================================
 	// HEALTH CHECK

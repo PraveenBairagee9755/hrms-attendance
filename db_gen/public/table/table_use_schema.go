@@ -13,4 +13,5 @@ func UseSchema(schema string) {
 	Attendance = Attendance.FromSchema(schema)
 	LeaveApplication = LeaveApplication.FromSchema(schema)
 	LeaveType = LeaveType.FromSchema(schema)
+	SalaryStructure = SalaryStructure.FromSchema(schema)
 }
