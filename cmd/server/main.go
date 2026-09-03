@@ -63,6 +63,8 @@ func main() {
 
 	app.Post("/api/leave/reject/:id", leaveHandler.RejectLeaveHandler)
 
+	app.Get("/api/leave/balance/:employeeId", leaveHandler.GetEmployeeLeaveBalancesHandler)
+
 	// =========================================================
 	// SALARY MODULE
 	// =========================================================

@@ -3,9 +3,12 @@ package leave
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
-	"github.com/google/uuid"
+	"hrms-attendance/db_gen/public/model"
+
+	"github.com/shopspring/decimal"
 )
 
 type Service struct {
@@ -21,12 +24,12 @@ func NewService(repo *Repository) *Service {
 // GetLeaveTypes returns all active leave types.
 func (s *Service) GetLeaveTypes(
 	ctx context.Context,
-) (interface{}, error) {
+) ([]model.LeaveType, error) {
 
 	return s.repo.GetLeaveTypes(ctx)
 }
 
-// ApplyLeave validates and creates a leave application.
+// ApplyLeave validates and creates a pending leave application.
 func (s *Service) ApplyLeave(
 	ctx context.Context,
 	employeeID string,
@@ -36,25 +39,14 @@ func (s *Service) ApplyLeave(
 	reason string,
 ) error {
 
-	// Validate employee ID.
 	if employeeID == "" {
 		return errors.New("employee ID cannot be empty")
 	}
 
-	if _, err := uuid.Parse(employeeID); err != nil {
-		return errors.New("invalid employee ID")
-	}
-
-	// Validate leave type ID.
 	if leaveTypeID == "" {
 		return errors.New("leave type ID cannot be empty")
 	}
 
-	if _, err := uuid.Parse(leaveTypeID); err != nil {
-		return errors.New("invalid leave type ID")
-	}
-
-	// Validate dates.
 	if startDate.IsZero() {
 		return errors.New("start date is required")
 	}
@@ -67,20 +59,43 @@ func (s *Service) ApplyLeave(
 		return errors.New("end date cannot be before start date")
 	}
 
-	// Calculate number of leave days.
+	// Calculate inclusive leave days.
 	totalDays := calculateLeaveDays(startDate, endDate)
 
 	if totalDays <= 0 {
 		return errors.New("leave duration must be greater than zero")
 	}
 
-	// Validate reason.
-	if reason == "" {
-		return errors.New("leave reason cannot be empty")
+	// Get employee leave balance for the year.
+	year := startDate.Year()
+
+	balance, err := s.repo.GetEmployeeLeaveBalance(
+		ctx,
+		employeeID,
+		leaveTypeID,
+		year,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"failed to get leave balance: %w",
+			err,
+		)
 	}
 
-	// Create leave application.
-	return s.repo.ApplyLeave(
+	// EmployeeLeaveBalance uses decimal.Decimal.
+	requestedDays := decimal.NewFromFloat(totalDays)
+
+	// Check available balance.
+	if balance.RemainingDays.LessThan(requestedDays) {
+		return fmt.Errorf(
+			"insufficient leave balance: available %.2f days, requested %.2f days",
+			balance.RemainingDays.InexactFloat64(),
+			totalDays,
+		)
+	}
+
+	// Create pending application.
+	err = s.repo.ApplyLeave(
 		ctx,
 		employeeID,
 		leaveTypeID,
@@ -89,25 +104,87 @@ func (s *Service) ApplyLeave(
 		totalDays,
 		reason,
 	)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// GetEmployeeLeaveHistory returns an employee's leave applications.
+// calculateLeaveDays calculates inclusive leave days.
+//
+// Example:
+//
+// Start: 2026-08-10
+// End:   2026-08-12
+// Result: 3
+func calculateLeaveDays(
+	startDate time.Time,
+	endDate time.Time,
+) float64 {
+
+	start := time.Date(
+		startDate.Year(),
+		startDate.Month(),
+		startDate.Day(),
+		0,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
+
+	end := time.Date(
+		endDate.Year(),
+		endDate.Month(),
+		endDate.Day(),
+		0,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
+
+	return end.Sub(start).Hours()/24 + 1
+}
+
+// GetEmployeeLeaveHistory returns leave applications
+// for an employee.
 func (s *Service) GetEmployeeLeaveHistory(
 	ctx context.Context,
 	employeeID string,
-) (interface{}, error) {
+) ([]model.LeaveApplication, error) {
 
 	if employeeID == "" {
 		return nil, errors.New("employee ID cannot be empty")
 	}
 
-	if _, err := uuid.Parse(employeeID); err != nil {
-		return nil, errors.New("invalid employee ID")
-	}
-
 	return s.repo.GetEmployeeLeaveHistory(
 		ctx,
 		employeeID,
+	)
+}
+
+// GetEmployeeLeaveBalances returns all leave balances
+// for an employee for a specific year.
+func (s *Service) GetEmployeeLeaveBalances(
+	ctx context.Context,
+	employeeID string,
+	year int,
+) ([]model.EmployeeLeaveBalance, error) {
+
+	if employeeID == "" {
+		return nil, errors.New("employee ID cannot be empty")
+	}
+
+	if year <= 0 {
+		return nil, errors.New("invalid year")
+	}
+
+	return s.repo.GetEmployeeLeaveBalances(
+		ctx,
+		employeeID,
+		year,
 	)
 }
 
@@ -122,16 +199,8 @@ func (s *Service) CancelLeave(
 		return errors.New("employee ID cannot be empty")
 	}
 
-	if _, err := uuid.Parse(employeeID); err != nil {
-		return errors.New("invalid employee ID")
-	}
-
 	if leaveApplicationID == "" {
 		return errors.New("leave application ID cannot be empty")
-	}
-
-	if _, err := uuid.Parse(leaveApplicationID); err != nil {
-		return errors.New("invalid leave application ID")
 	}
 
 	return s.repo.CancelLeave(
@@ -141,7 +210,8 @@ func (s *Service) CancelLeave(
 	)
 }
 
-// ApproveLeave approves a pending leave application.
+// ApproveLeave approves a pending leave application
+// and updates the employee leave balance.
 func (s *Service) ApproveLeave(
 	ctx context.Context,
 	leaveApplicationID string,
@@ -152,23 +222,78 @@ func (s *Service) ApproveLeave(
 		return errors.New("leave application ID cannot be empty")
 	}
 
-	if _, err := uuid.Parse(leaveApplicationID); err != nil {
-		return errors.New("invalid leave application ID")
-	}
-
 	if approvedBy == "" {
-		return errors.New("approver ID cannot be empty")
+		return errors.New("approvedBy cannot be empty")
 	}
 
-	if _, err := uuid.Parse(approvedBy); err != nil {
-		return errors.New("invalid approver ID")
+	// Get leave application.
+	application, err := s.repo.GetLeaveApplication(
+		ctx,
+		leaveApplicationID,
+	)
+	if err != nil {
+		return err
 	}
 
-	return s.repo.ApproveLeave(
+	// Only Pending applications can be approved.
+	if application.Status != "Pending" {
+		return fmt.Errorf(
+			"leave application is not pending, current status: %s",
+			application.Status,
+		)
+	}
+
+	// Get employee balance.
+	balance, err := s.repo.GetEmployeeLeaveBalance(
+		ctx,
+		application.EmployeeId.String(),
+		application.LeaveTypeId.String(),
+		application.StartDate.Year(),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to get leave balance: %w", err)
+	}
+
+	// Check balance.
+	if balance.RemainingDays.LessThan(application.TotalDays) {
+		return fmt.Errorf(
+			"insufficient leave balance: available %.2f days, requested %.2f days",
+			balance.RemainingDays.InexactFloat64(),
+			application.TotalDays.InexactFloat64(),
+		)
+	}
+
+	// Calculate new balance.
+	newUsedDays := balance.UsedDays.Add(
+		application.TotalDays,
+	)
+
+	newRemainingDays := balance.RemainingDays.Sub(
+		application.TotalDays,
+	)
+
+	// Update balance.
+	err = s.repo.UpdateLeaveBalance(
+		ctx,
+		balance.ID.String(),
+		newUsedDays.InexactFloat64(),
+		newRemainingDays.InexactFloat64(),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update leave balance: %w", err)
+	}
+
+	// Approve application.
+	err = s.repo.ApproveLeave(
 		ctx,
 		leaveApplicationID,
 		approvedBy,
 	)
+	if err != nil {
+		return fmt.Errorf("failed to approve leave application: %w", err)
+	}
+
+	return nil
 }
 
 // RejectLeave rejects a pending leave application.
@@ -183,16 +308,8 @@ func (s *Service) RejectLeave(
 		return errors.New("leave application ID cannot be empty")
 	}
 
-	if _, err := uuid.Parse(leaveApplicationID); err != nil {
-		return errors.New("invalid leave application ID")
-	}
-
 	if rejectedBy == "" {
-		return errors.New("rejector ID cannot be empty")
-	}
-
-	if _, err := uuid.Parse(rejectedBy); err != nil {
-		return errors.New("invalid rejector ID")
+		return errors.New("rejectedBy cannot be empty")
 	}
 
 	if rejectionReason == "" {
@@ -205,38 +322,4 @@ func (s *Service) RejectLeave(
 		rejectedBy,
 		rejectionReason,
 	)
-}
-
-// calculateLeaveDays calculates the number of calendar days
-// between start date and end date, including both dates.
-func calculateLeaveDays(
-	startDate time.Time,
-	endDate time.Time,
-) float64 {
-
-	start := time.Date(
-		startDate.Year(),
-		startDate.Month(),
-		startDate.Day(),
-		0,
-		0,
-		0,
-		0,
-		startDate.Location(),
-	)
-
-	end := time.Date(
-		endDate.Year(),
-		endDate.Month(),
-		endDate.Day(),
-		0,
-		0,
-		0,
-		0,
-		endDate.Location(),
-	)
-
-	duration := end.Sub(start)
-
-	return duration.Hours()/24 + 1
 }

@@ -60,6 +60,38 @@ func (h *Handler) GetLeaveTypesHandler(c *fiber.Ctx) error {
 }
 
 // -------------------------
+// Employee Leave Balance
+// GET /api/leave/balance/:employeeId?year=2026
+// -------------------------
+
+func (h *Handler) GetEmployeeLeaveBalancesHandler(c *fiber.Ctx) error {
+
+	employeeID := c.Params("employeeId")
+
+	if employeeID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "employeeId is required"})
+	}
+
+	year := c.QueryInt("year", time.Now().Year())
+
+	if year <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid year"})
+	}
+
+	balances, err := h.service.GetEmployeeLeaveBalances(
+		c.UserContext(),
+		employeeID,
+		year,
+	)
+
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"data": balances})
+}
+
+// -------------------------
 // Apply Leave
 // POST /api/leave/apply
 // -------------------------

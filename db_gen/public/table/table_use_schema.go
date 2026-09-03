@@ -11,6 +11,7 @@ package table
 // this method only once at the beginning of the program.
 func UseSchema(schema string) {
 	Attendance = Attendance.FromSchema(schema)
+	EmployeeLeaveBalance = EmployeeLeaveBalance.FromSchema(schema)
 	LeaveApplication = LeaveApplication.FromSchema(schema)
 	LeaveType = LeaveType.FromSchema(schema)
 	SalaryStructure = SalaryStructure.FromSchema(schema)

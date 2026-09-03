@@ -13,13 +13,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// LeaveUsage represents approved leave usage for one leave type.
 type LeaveUsage struct {
-	LeaveTypeID    string  `json:"leaveTypeId"`
-	LeaveTypeName  string  `json:"leaveTypeName"`
-	MaxDaysPerYear int     `json:"maxDaysPerYear"`
-	UsedDays       float64 `json:"usedDays"`
-	LOPDays        float64 `json:"lopDays"`
+	LeaveTypeID    uuid.UUID `alias:"leaveTypeId"`
+	LeaveTypeName  string    `alias:"leaveTypeName"`
+	MaxDaysPerYear int       `alias:"maxDaysPerYear"`
+	UsedDays       float64   `alias:"usedDays"`
+	RemainingDays  float64
+	LOPDays        float64
 }
 
 type Repository struct {
@@ -83,12 +83,11 @@ func (r *Repository) GetSalaryStructure(
 	return &salary, nil
 }
 
-// GetApprovedLeaveUsage returns approved leave usage grouped by leave type
-// for the requested year.
 func (r *Repository) GetApprovedLeaveUsage(
 	ctx context.Context,
 	employeeID string,
 	year int,
+	month time.Month,
 ) ([]LeaveUsage, error) {
 
 	employeeUUID, err := uuid.Parse(employeeID)
@@ -96,67 +95,73 @@ func (r *Repository) GetApprovedLeaveUsage(
 		return nil, fmt.Errorf("invalid employee ID: %w", err)
 	}
 
-	startDate := Date(
+	startOfMonth := time.Date(
 		year,
-		time.January,
+		month,
 		1,
+		0,
+		0,
+		0,
+		0,
+		time.UTC,
 	)
 
-	endDate := Date(
-		year,
-		time.December,
-		31,
+	startOfNextMonth := startOfMonth.AddDate(0, 1, 0)
+
+	query := `
+		SELECT
+			lt.id,
+			lt.name,
+			lt."maxDaysPerYear",
+			COALESCE(SUM(la."totalDays"), 0)
+		FROM public."LeaveApplication" la
+		INNER JOIN public."LeaveType" lt
+			ON la."leaveTypeId" = lt.id
+		WHERE la."employeeId" = $1
+			AND la.status = 'Approved'
+			AND la."startDate" < $2
+			AND la."endDate" >= $3
+		GROUP BY
+			lt.id,
+			lt.name,
+			lt."maxDaysPerYear"
+		ORDER BY lt.name ASC
+	`
+
+	rows, err := r.DB.QueryContext(
+		ctx,
+		query,
+		employeeUUID,
+		startOfNextMonth,
+		startOfMonth,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query approved leave usage: %w",err)
+	}
+	defer rows.Close()
 
 	var usage []LeaveUsage
 
-	stmt := SELECT(
-		table.LeaveType.ID.AS("leaveTypeId"),
-		table.LeaveType.Name.AS("leaveTypeName"),
-		table.LeaveType.MaxDaysPerYear.AS("maxDaysPerYear"),
+	for rows.Next() {
 
-		COALESCE(
-			SUM(table.LeaveApplication.TotalDays),
-			Float(0),
-		).AS("usedDays"),
-	).FROM(
-		table.LeaveType,
-		table.LeaveApplication,
-	).WHERE(
-		table.LeaveType.ID.EQ(
-			table.LeaveApplication.LeaveTypeId,
-		).
-			AND(
-				table.LeaveApplication.EmployeeId.EQ(UUID(employeeUUID)),
-			).
-			AND(
-				table.LeaveApplication.Status.EQ(String("Approved")),
-			).
-			AND(
-				table.LeaveApplication.StartDate.LT_EQ(endDate),
-			).
-			AND(
-				table.LeaveApplication.EndDate.GT_EQ(startDate),
-			),
-	).GROUP_BY(
-		table.LeaveType.ID,
-		table.LeaveType.Name,
-		table.LeaveType.MaxDaysPerYear,
-	).ORDER_BY(
-		table.LeaveType.Name.ASC(),
-	)
+		var item LeaveUsage
 
-	err = stmt.QueryContext(
-		ctx,
-		r.DB,
-		&usage,
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf(
-			"failed to get approved leave usage: %w",
-			err,
+		err := rows.Scan(
+			&item.LeaveTypeID,
+			&item.LeaveTypeName,
+			&item.MaxDaysPerYear,
+			&item.UsedDays,
 		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan leave usage: %w",err)
+		}
+
+		usage = append(usage, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed while reading leave usage: %w",err)
 	}
 
 	return usage, nil

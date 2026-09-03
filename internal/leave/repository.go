@@ -46,6 +46,229 @@ func (r *Repository) GetLeaveTypes(ctx context.Context) ([]model.LeaveType, erro
 	return leaveTypes, nil
 }
 
+// GetEmployeeLeaveBalance returns the leave balance for an employee,
+// leave type, and year.
+func (r *Repository) GetEmployeeLeaveBalance(
+	ctx context.Context,
+	employeeID string,
+	leaveTypeID string,
+	year int,
+) (*model.EmployeeLeaveBalance, error) {
+
+	employeeUUID, err := uuid.Parse(employeeID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid employee ID: %w", err)
+	}
+
+	leaveTypeUUID, err := uuid.Parse(leaveTypeID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid leave type ID: %w", err)
+	}
+
+	var balance model.EmployeeLeaveBalance
+
+	stmt := SELECT(
+		table.EmployeeLeaveBalance.AllColumns,
+	).FROM(
+		table.EmployeeLeaveBalance,
+	).WHERE(
+		table.EmployeeLeaveBalance.EmployeeId.EQ(
+			UUID(employeeUUID),
+		).
+			AND(
+				table.EmployeeLeaveBalance.LeaveTypeId.EQ(
+					UUID(leaveTypeUUID),
+				),
+			).
+			AND(
+				table.EmployeeLeaveBalance.Year.EQ(
+					Int(int64(year)),
+				),
+			),
+	).LIMIT(1)
+
+	err = stmt.QueryContext(ctx, r.DB, &balance)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to get employee leave balance: %w",
+			err,
+		)
+	}
+
+	return &balance, nil
+}
+
+// GetEmployeeLeaveBalances returns all leave balances
+// for an employee for a specific year.
+func (r *Repository) GetEmployeeLeaveBalances(
+	ctx context.Context,
+	employeeID string,
+	year int,
+) ([]model.EmployeeLeaveBalance, error) {
+
+	employeeUUID, err := uuid.Parse(employeeID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid employee ID: %w", err)
+	}
+
+	var balances []model.EmployeeLeaveBalance
+
+	stmt := SELECT(
+		table.EmployeeLeaveBalance.AllColumns,
+	).FROM(
+		table.EmployeeLeaveBalance,
+	).WHERE(
+		table.EmployeeLeaveBalance.EmployeeId.EQ(
+			UUID(employeeUUID),
+		).
+			AND(
+				table.EmployeeLeaveBalance.Year.EQ(
+					Int(int64(year)),
+				),
+			),
+	).ORDER_BY(
+		table.EmployeeLeaveBalance.LeaveTypeId.ASC(),
+	)
+
+	err = stmt.QueryContext(ctx, r.DB, &balances)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get employee leave balances: %w", err)
+	}
+
+	return balances, nil
+}
+
+// UpdateLeaveBalance updates used and remaining leave days.
+func (r *Repository) UpdateLeaveBalance(
+	ctx context.Context,
+	balanceID string,
+	usedDays float64,
+	remainingDays float64,
+) error {
+
+	balanceUUID, err := uuid.Parse(balanceID)
+	if err != nil {
+		return fmt.Errorf("invalid leave balance ID: %w", err)
+	}
+
+	stmt := table.EmployeeLeaveBalance.UPDATE(
+		table.EmployeeLeaveBalance.UsedDays,
+		table.EmployeeLeaveBalance.RemainingDays,
+		table.EmployeeLeaveBalance.UpdatedAt,
+	).SET(
+		usedDays,
+		remainingDays,
+		time.Now(),
+	).WHERE(
+		table.EmployeeLeaveBalance.ID.EQ(
+			UUID(balanceUUID),
+		),
+	)
+
+	result, err := stmt.ExecContext(ctx, r.DB)
+	if err != nil {
+		return fmt.Errorf("failed to update leave balance: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check leave balance update: %w", err)
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("leave balance not found")
+	}
+
+	return nil
+}
+
+// CreateLeaveBalance creates a leave balance for an employee.
+func (r *Repository) CreateLeaveBalance(
+	ctx context.Context,
+	employeeID string,
+	leaveTypeID string,
+	year int,
+	totalDays float64,
+) error {
+
+	employeeUUID, err := uuid.Parse(employeeID)
+	if err != nil {
+		return fmt.Errorf("invalid employee ID: %w", err)
+	}
+
+	leaveTypeUUID, err := uuid.Parse(leaveTypeID)
+	if err != nil {
+		return fmt.Errorf("invalid leave type ID: %w", err)
+	}
+
+	now := time.Now()
+
+	stmt := table.EmployeeLeaveBalance.INSERT(
+		table.EmployeeLeaveBalance.EmployeeId,
+		table.EmployeeLeaveBalance.LeaveTypeId,
+		table.EmployeeLeaveBalance.Year,
+		table.EmployeeLeaveBalance.TotalDays,
+		table.EmployeeLeaveBalance.UsedDays,
+		table.EmployeeLeaveBalance.RemainingDays,
+		table.EmployeeLeaveBalance.CarriedForwardDays,
+		table.EmployeeLeaveBalance.CreatedAt,
+		table.EmployeeLeaveBalance.UpdatedAt,
+	).VALUES(
+		UUID(employeeUUID),
+		UUID(leaveTypeUUID),
+		year,
+		totalDays,
+		0,
+		totalDays,
+		0,
+		now,
+		now,
+	)
+
+	_, err = stmt.ExecContext(ctx, r.DB)
+	if err != nil {
+		return fmt.Errorf("failed to create leave balance: %w", err)
+	}
+
+	return nil
+}
+
+// GetLeaveApplication returns a leave application by ID.
+func (r *Repository) GetLeaveApplication(
+	ctx context.Context,
+	leaveApplicationID string,
+) (*model.LeaveApplication, error) {
+
+	applicationUUID, err := uuid.Parse(leaveApplicationID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid leave application ID: %w", err)
+	}
+
+	var application model.LeaveApplication
+
+	stmt := SELECT(
+		table.LeaveApplication.AllColumns,
+	).FROM(
+		table.LeaveApplication,
+	).WHERE(
+		table.LeaveApplication.ID.EQ(
+			UUID(applicationUUID),
+		),
+	).LIMIT(1)
+
+	err = stmt.QueryContext(ctx, r.DB, &application)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"failed to get leave application: %w",
+			err,
+		)
+	}
+
+	return &application, nil
+}
+
+// ApproveLeave approves a pending leave application
+// and updates the employee leave balance.
 // ApplyLeave creates a new leave application.
 func (r *Repository) ApplyLeave(
 	ctx context.Context,

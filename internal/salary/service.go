@@ -83,7 +83,14 @@ func (s *Service) CalculateSalary(
 		ctx,
 		employeeID,
 		year,
+		month,
 	)
+
+	fmt.Printf("DEBUG SERVICE LEAVE USAGE COUNT: %d\n", len(leaveUsage))
+
+	for _, leave := range leaveUsage {
+		fmt.Printf("DEBUG SERVICE LEAVE: name=%s usedDays=%v\n", leave.LeaveTypeName, leave.UsedDays)
+	}
 
 	if err != nil {
 		return nil, err
@@ -96,17 +103,14 @@ func (s *Service) CalculateSalary(
 	var totalLOPDays float64
 
 	for i := range leaveUsage {
-
 		usedDays := leaveUsage[i].UsedDays
-		allowedDays := float64(leaveUsage[i].MaxDaysPerYear)
 
-		if allowedDays <= 0 {
-			// Leave type has no paid allowance.
+		// Loss Of Pay leave is always unpaid.
+		if leaveUsage[i].LeaveTypeName == "Loss Of Pay" {
 			leaveUsage[i].LOPDays = usedDays
-		} else if usedDays > allowedDays {
-			// Only excess leave becomes LOP.
-			leaveUsage[i].LOPDays = usedDays - allowedDays
 		} else {
+			// Sick/Casual/Birthday leave within the
+			// employee's balance is paid leave.
 			leaveUsage[i].LOPDays = 0
 		}
 
