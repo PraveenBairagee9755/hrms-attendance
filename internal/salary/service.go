@@ -86,12 +86,6 @@ func (s *Service) CalculateSalary(
 		month,
 	)
 
-	fmt.Printf("DEBUG SERVICE LEAVE USAGE COUNT: %d\n", len(leaveUsage))
-
-	for _, leave := range leaveUsage {
-		fmt.Printf("DEBUG SERVICE LEAVE: name=%s usedDays=%v\n", leave.LeaveTypeName, leave.UsedDays)
-	}
-
 	if err != nil {
 		return nil, err
 	}

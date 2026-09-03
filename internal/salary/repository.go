@@ -136,7 +136,7 @@ func (r *Repository) GetApprovedLeaveUsage(
 		startOfMonth,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query approved leave usage: %w",err)
+		return nil, fmt.Errorf("failed to query approved leave usage: %w", err)
 	}
 	defer rows.Close()
 
@@ -154,14 +154,14 @@ func (r *Repository) GetApprovedLeaveUsage(
 		)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan leave usage: %w",err)
+			return nil, fmt.Errorf("failed to scan leave usage: %w", err)
 		}
 
 		usage = append(usage, item)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed while reading leave usage: %w",err)
+		return nil, fmt.Errorf("failed while reading leave usage: %w", err)
 	}
 
 	return usage, nil
