@@ -4,35 +4,67 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
-// ConnectDB establishes a connection pool with the PostgreSQL database
+// ConnectDB establishes a connection pool with the PostgreSQL database.
 func ConnectDB() (*sql.DB, error) {
-	// Database connection credentials
-	host := "localhost"
-	port := 5432
-	user := "postgres"
-	password := "Pravin@123"
-	dbname := "hrms_db"
+	var psqlInfo string
 
-	// Create the connection string
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname)
+	databaseURL := os.Getenv("DATABASE_URL")
 
-	// Open the database connection
+	if databaseURL != "" {
+		psqlInfo = databaseURL
+	} else {
+		host := os.Getenv("DB_HOST")
+		port := os.Getenv("DB_PORT")
+		user := os.Getenv("DB_USER")
+		password := os.Getenv("DB_PASSWORD")
+		dbname := os.Getenv("DB_NAME")
+
+		if host == "" {
+			host = "localhost"
+		}
+
+		if port == "" {
+			port = "5432"
+		}
+
+		if user == "" {
+			user = "postgres"
+		}
+
+		if dbname == "" {
+			dbname = "hrms_db"
+		}
+
+		if password == "" {
+			return nil, fmt.Errorf("DB_PASSWORD environment variable is required")
+		}
+
+		psqlInfo = fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+			host,
+			port,
+			user,
+			password,
+			dbname,
+		)
+	}
+
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		return nil, fmt.Errorf("error opening database: %w", err)
 	}
 
-	// Verify the connection is active
-	err = db.Ping()
-	if err != nil {
+	if err := db.Ping(); err != nil {
+		db.Close()
 		return nil, fmt.Errorf("database connection failed: %w", err)
 	}
 
 	log.Println("Successfully connected to the PostgreSQL database!")
+
 	return db, nil
 }
