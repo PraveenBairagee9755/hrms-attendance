@@ -92,3 +92,38 @@ func (h *Handler) ClockOutHandler(c *fiber.Ctx) error {
 		"employeeId": req.EmployeeID,
 	})
 }
+
+// ImportAttendanceHandler handles POST /api/attendance/import.
+func (h *Handler) ImportAttendanceHandler(c *fiber.Ctx) error {
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Excel file is required"})
+	}
+
+	// Open uploaded file.
+	src, err := file.Open()
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Failed to open uploaded Excel file"})
+	}
+	defer src.Close()
+
+	// Process Excel file through service layer.
+	totalRows, successRows, errorsList, err :=
+		h.service.ImportAttendanceExcel(
+			c.UserContext(),
+			src,
+		)
+
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":     "Attendance Excel import completed",
+		"totalRows":   totalRows,
+		"successRows": successRows,
+		"failedRows":  len(errorsList),
+		"errors":      errorsList,
+	})
+}

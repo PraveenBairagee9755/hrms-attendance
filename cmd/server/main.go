@@ -40,8 +40,9 @@ func main() {
 
 	app.Post("/api/attendance/clock-in", attendanceHandler.ClockInHandler)
 
-	app.Post(
-		"/api/attendance/clock-out", attendanceHandler.ClockOutHandler)
+	app.Post("/api/attendance/clock-out", attendanceHandler.ClockOutHandler)
+
+	app.Post("/api/attendance/import", attendanceHandler.ImportAttendanceHandler)
 
 	// =========================================================
 	// LEAVE MODULE
@@ -65,6 +66,8 @@ func main() {
 
 	app.Get("/api/leave/balance/:employeeId", leaveHandler.GetEmployeeLeaveBalancesHandler)
 
+	app.Post("/api/leave/import", leaveHandler.ImportLeaveApplicationExcelHandler)
+
 	// =========================================================
 	// SALARY MODULE
 	// =========================================================
@@ -74,6 +77,8 @@ func main() {
 	salaryHandler := salary.NewHandler(salaryService)
 
 	app.Get("/api/salary/calculate/:employeeId", salaryHandler.CalculateSalaryHandler)
+
+	app.Post("/api/salary/import", salaryHandler.ImportSalaryStructureExcelHandler)
 
 	// =========================================================
 	// HEALTH CHECK

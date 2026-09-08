@@ -171,3 +171,65 @@ func (r *Repository) GetEmployeeHistory(
 
 	return records, nil
 }
+
+// ImportAttendance inserts one attendance record imported from Excel.
+// ImportAttendance inserts or updates an attendance record imported from Excel.
+func (r *Repository) ImportAttendance(
+	ctx context.Context,
+	data AttendanceExcelRow,
+) error {
+
+	employeeUUID, err := uuid.Parse(data.EmployeeID)
+	if err != nil {
+		return fmt.Errorf("invalid employee ID: %w", err)
+	}
+
+	now := time.Now()
+
+	stmt := table.Attendance.INSERT(
+		table.Attendance.EmployeeId,
+		table.Attendance.Date,
+		table.Attendance.CheckInTime,
+		table.Attendance.CheckOutTime,
+		table.Attendance.Status,
+		table.Attendance.CreatedAt,
+		table.Attendance.UpdatedAt,
+	).VALUES(
+		employeeUUID,
+		Date(
+			data.Date.Year(),
+			data.Date.Month(),
+			data.Date.Day(),
+		),
+		data.CheckInTime,
+		data.CheckOutTime,
+		data.Status,
+		now,
+		now,
+	).ON_CONFLICT(
+		table.Attendance.EmployeeId,
+		table.Attendance.Date,
+	).DO_UPDATE(
+		SET(
+			table.Attendance.CheckInTime.SET(
+				table.Attendance.EXCLUDED.CheckInTime,
+			),
+			table.Attendance.CheckOutTime.SET(
+				table.Attendance.EXCLUDED.CheckOutTime,
+			),
+			table.Attendance.Status.SET(
+				table.Attendance.EXCLUDED.Status,
+			),
+			table.Attendance.UpdatedAt.SET(
+				table.Attendance.EXCLUDED.UpdatedAt,
+			),
+		),
+	)
+
+	_, err = stmt.ExecContext(ctx, r.DB)
+	if err != nil {
+		return fmt.Errorf("failed to import attendance: %w", err)
+	}
+
+	return nil
+}

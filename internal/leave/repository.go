@@ -524,3 +524,57 @@ func (r *Repository) RejectLeave(
 
 	return nil
 }
+
+// ImportLeaveApplication inserts one leave application
+// imported from Excel with Pending status.
+func (r *Repository) ImportLeaveApplication(
+	ctx context.Context,
+	data LeaveApplicationExcelRow,
+) error {
+
+	employeeUUID, err := uuid.Parse(data.EmployeeID)
+	if err != nil {
+		return fmt.Errorf("invalid employee ID: %w", err)
+	}
+
+	leaveTypeUUID, err := uuid.Parse(data.LeaveTypeID)
+	if err != nil {
+		return fmt.Errorf("invalid leave type ID: %w", err)
+	}
+
+	// Calculate total leave days.
+	totalDays := data.EndDate.Sub(data.StartDate).Hours()/24 + 1
+
+	if totalDays <= 0 {
+		return fmt.Errorf("invalid leave duration")
+	}
+
+	applicationID := uuid.New()
+
+	stmt := table.LeaveApplication.INSERT(
+		table.LeaveApplication.ID,
+		table.LeaveApplication.EmployeeId,
+		table.LeaveApplication.LeaveTypeId,
+		table.LeaveApplication.StartDate,
+		table.LeaveApplication.EndDate,
+		table.LeaveApplication.TotalDays,
+		table.LeaveApplication.Reason,
+		table.LeaveApplication.Status,
+	).VALUES(
+		applicationID,
+		employeeUUID,
+		leaveTypeUUID,
+		Date(data.StartDate.Year(), data.StartDate.Month(), data.StartDate.Day()),
+		Date(data.EndDate.Year(), data.EndDate.Month(), data.EndDate.Day()),
+		totalDays,
+		data.Reason,
+		"Pending",
+	)
+
+	_, err = stmt.ExecContext(ctx, r.DB)
+	if err != nil {
+		return fmt.Errorf("failed to import leave application: %w", err)
+	}
+
+	return nil
+}

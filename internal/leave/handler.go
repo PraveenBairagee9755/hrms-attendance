@@ -1,6 +1,7 @@
 package leave
 
 import (
+	"context"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -286,4 +287,46 @@ func (h *Handler) RejectLeaveHandler(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Leave rejected successfully"})
+}
+
+// ImportLeaveApplicationExcelHandler handles leave application Excel uploads.
+func (h *Handler) ImportLeaveApplicationExcelHandler(c *fiber.Ctx) error {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Excel file is required",
+		})
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "failed to open uploaded file",
+			"error":   err.Error(),
+		})
+	}
+	defer file.Close()
+
+	successRows, failedRows, errors, err :=
+		h.service.ImportLeaveApplicationExcel(
+			context.Background(),
+			file,
+		)
+
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success":     true,
+		"message":     "Leave applications imported successfully",
+		"successRows": successRows,
+		"failedRows":  failedRows,
+		"errors":      errors,
+	})
 }

@@ -166,3 +166,92 @@ func (r *Repository) GetApprovedLeaveUsage(
 
 	return usage, nil
 }
+
+// ImportSalaryStructure inserts one salary structure imported from Excel.
+func (r *Repository) ImportSalaryStructure(
+	ctx context.Context,
+	data SalaryStructureExcelRow,
+) error {
+
+	employeeUUID, err := uuid.Parse(data.EmployeeID)
+	if err != nil {
+		return fmt.Errorf("invalid employee ID: %w", err)
+	}
+
+	// Check for overlapping salary structures for the same employee.
+	var exists bool
+
+	err = r.DB.QueryRowContext(
+		ctx,
+		`
+		SELECT EXISTS (
+            SELECT 1
+            FROM public."SalaryStructure"
+            WHERE "employeeId" = $1
+              AND ("effectiveTo" IS NULL OR "effectiveTo" >= $2)
+              AND ($3::timestamp IS NULL OR "effectiveFrom" <= $3)
+        )
+        `,
+		employeeUUID,
+		data.EffectiveFrom,
+		data.EffectiveTo,
+	).Scan(&exists)
+
+	if err != nil {
+		return fmt.Errorf("failed to check existing salary structure: %w", err)
+	}
+
+	if exists {
+		return fmt.Errorf("salary structure already exists for employee %s with an overlapping effective period", data.EmployeeID)
+	}
+
+	now := time.Now()
+
+	salaryStructureID := uuid.New()
+
+	stmt := table.SalaryStructure.INSERT(
+		table.SalaryStructure.ID,
+		table.SalaryStructure.EmployeeId,
+		table.SalaryStructure.EffectiveFrom,
+		table.SalaryStructure.EffectiveTo,
+		table.SalaryStructure.BasicSalary,
+		table.SalaryStructure.Hra,
+		table.SalaryStructure.Allowances,
+		table.SalaryStructure.Deductions,
+		table.SalaryStructure.GrossSalary,
+		table.SalaryStructure.NetSalary,
+		table.SalaryStructure.Currency,
+		table.SalaryStructure.CreatedAt,
+		table.SalaryStructure.CreatedBy,
+		table.SalaryStructure.UpdatedAt,
+	).VALUES(
+		salaryStructureID,
+		employeeUUID,
+		Date(
+			data.EffectiveFrom.Year(),
+			data.EffectiveFrom.Month(),
+			data.EffectiveFrom.Day(),
+		),
+		data.EffectiveTo,
+		data.BasicSalary,
+		data.HRA,
+		data.Allowances,
+		data.Deductions,
+		data.GrossSalary,
+		data.NetSalary,
+		data.Currency,
+		now,
+		data.CreatedBy,
+		now,
+	)
+
+	_, err = stmt.ExecContext(ctx, r.DB)
+	if err != nil {
+		return fmt.Errorf(
+			"failed to import salary structure: %w",
+			err,
+		)
+	}
+
+	return nil
+}

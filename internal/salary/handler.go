@@ -1,6 +1,7 @@
 package salary
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -87,4 +88,42 @@ func (h *Handler) CalculateSalaryHandler(c *fiber.Ctx) error {
 	// --------------------------------
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"data": result})
+}
+
+// ImportSalaryStructureExcelHandler handles salary structure Excel imports.
+func (h *Handler) ImportSalaryStructureExcelHandler(c *fiber.Ctx) error {
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Excel file is required",
+		})
+	}
+
+	file, err := fileHeader.Open()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": "failed to open uploaded Excel file",
+		})
+	}
+	defer file.Close()
+
+	successRows, failedRows, errorsList, err :=
+		h.service.ImportSalaryStructureExcel(c.Context(), file)
+
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success":     true,
+		"message":     fmt.Sprintf("%d salary structure row(s) imported successfully", successRows),
+		"successRows": successRows,
+		"failedRows":  failedRows,
+		"errors":      errorsList,
+	})
 }
