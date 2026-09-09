@@ -46,6 +46,22 @@ func main() {
 	app.Post("/api/attendance/import", attendanceHandler.ImportAttendanceHandler)
 
 	// =========================================================
+	// ATTENDANCE REGULARIZATION MODULE
+	// =========================================================
+
+	regularizationHandler := attendance.NewRegularizationHandler(attendanceService)
+
+	app.Post("/api/attendance/regularization", regularizationHandler.CreateRegularizationHandler)
+
+	app.Get("/api/attendance/regularization/:employeeId", regularizationHandler.GetRegularizationHistoryHandler)
+
+	app.Post("/api/attendance/regularization/approve/:id", regularizationHandler.ApproveRegularizationHandler)
+
+	app.Post("/api/attendance/regularization/reject/:id", regularizationHandler.RejectRegularizationHandler)
+
+	app.Post("/api/attendance/regularization/import", regularizationHandler.ImportRegularizationHandler)
+
+	// =========================================================
 	// LEAVE MODULE
 	// =========================================================
 

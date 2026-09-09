@@ -14,5 +14,6 @@ func UseSchema(schema string) {
 	EmployeeLeaveBalance = EmployeeLeaveBalance.FromSchema(schema)
 	LeaveApplication = LeaveApplication.FromSchema(schema)
 	LeaveType = LeaveType.FromSchema(schema)
+	Regularization = Regularization.FromSchema(schema)
 	SalaryStructure = SalaryStructure.FromSchema(schema)
 }
