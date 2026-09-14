@@ -273,6 +273,7 @@ func (r *Repository) ApproveRegularization(
 	}
 
 	// Mark Regularization as Approved.
+	
 	_, err = tx.ExecContext(
 		ctx,
 		`

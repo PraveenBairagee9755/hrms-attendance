@@ -7,6 +7,21 @@ import (
 	"github.com/google/uuid"
 )
 
+// ClockInResult contains the result of a successful clock-in.
+type ClockInResult struct {
+	EmployeeID string `json:"employeeId"`
+	InTime     string `json:"inTime"`
+	LateBy     string `json:"lateBy,omitempty"`
+	EarlyBy    string `json:"earlyBy,omitempty"`
+}
+
+// ClockOutResult contains the result of a successful clock-out.
+type ClockOutResult struct {
+	EmployeeID     string `json:"employeeId"`
+	OutTime        string `json:"outTime"`
+	TotalWorkHours string `json:"totalWorkHours"`
+}
+
 // Service handles business logic validations for the attendance system.
 type Service struct {
 	repo *Repository
@@ -20,45 +35,35 @@ func NewService(repo *Repository) *Service {
 }
 
 // ClockIn validates and processes an employee's clock-in.
-func (s *Service) ClockIn(ctx context.Context, employeeID string) error {
+func (s *Service) ClockIn(
+	ctx context.Context,
+	employeeID string,
+) (*ClockInResult, error) {
 
-	// Validate employee ID is not empty.
 	if employeeID == "" {
-		return errors.New("employee ID cannot be empty")
+		return nil, errors.New("employee ID cannot be empty")
 	}
 
-	// Validate employee ID is a valid UUID.
 	if _, err := uuid.Parse(employeeID); err != nil {
-		return errors.New("invalid employee ID")
+		return nil, errors.New("invalid employee ID")
 	}
-
-	// Business rules can be added here later:
-	// - Check employee exists
-	// - Check employee is active
-	// - Check employee hasn't already clocked in today
-	// - Check employee's shift
 
 	return s.repo.ClockIn(ctx, employeeID)
 }
 
 // ClockOut validates and processes an employee's clock-out.
-func (s *Service) ClockOut(ctx context.Context, employeeID string) error {
+func (s *Service) ClockOut(
+	ctx context.Context,
+	employeeID string,
+) (*ClockOutResult, error) {
 
-	// Validate employee ID is not empty.
 	if employeeID == "" {
-		return errors.New("employee ID cannot be empty")
+		return nil, errors.New("employee ID cannot be empty")
 	}
 
-	// Validate employee ID is a valid UUID.
 	if _, err := uuid.Parse(employeeID); err != nil {
-		return errors.New("invalid employee ID")
+		return nil, errors.New("invalid employee ID")
 	}
-
-	// Business rules can be added here later:
-	// - Check employee has clocked in
-	// - Check employee hasn't already clocked out
-	// - Calculate work hours
-	// - Update attendance status
 
 	return s.repo.ClockOut(ctx, employeeID)
 }

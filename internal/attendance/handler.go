@@ -26,35 +26,40 @@ func (h *Handler) ClockInHandler(c *fiber.Ctx) error {
 
 	var req AttendanceRequest
 
-	// Parse JSON request body.
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request payload",
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
-	// Validate employee ID.
 	if req.EmployeeID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "employeeId is required",
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "employeeId is required"})
 	}
 
-	// Call service layer.
-	err := h.service.ClockIn(
+	result, err := h.service.ClockIn(
 		c.UserContext(),
 		req.EmployeeID,
 	)
+
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+	response := fiber.Map{
+		"employeeId": result.EmployeeID,
+		"inTime":     result.InTime,
 		"message":    "Successfully clocked in",
-		"employeeId": req.EmployeeID,
-	})
+	}
+
+	// Only return lateBy when employee is late.
+	if result.LateBy != "" {
+		response["lateBy"] = result.LateBy
+	}
+
+	// Only return earlyBy when employee comes early.
+	if result.EarlyBy != "" {
+		response["earlyBy"] = result.EarlyBy
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(response)
 }
 
 // ClockOutHandler handles POST /api/attendance/clock-out.
@@ -62,34 +67,28 @@ func (h *Handler) ClockOutHandler(c *fiber.Ctx) error {
 
 	var req AttendanceRequest
 
-	// Parse JSON request body.
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "Invalid request payload",
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
-	// Validate employee ID.
 	if req.EmployeeID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "employeeId is required",
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "employeeId is required"})
 	}
 
-	// Call service layer.
-	err := h.service.ClockOut(
+	result, err := h.service.ClockOut(
 		c.UserContext(),
 		req.EmployeeID,
 	)
+
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": err.Error(),
-		})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":    "Successfully clocked out",
-		"employeeId": req.EmployeeID,
+		"employeeId":     result.EmployeeID,
+		"outTime":        result.OutTime,
+		"totalWorkHours": result.TotalWorkHours,
+		"message":        "Successfully clocked out",
 	})
 }
 

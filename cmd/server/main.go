@@ -69,6 +69,9 @@ func main() {
 	leaveService := leave.NewService(leaveRepo)
 	leaveHandler := leave.NewHandler(leaveService)
 
+	leavePolicyService := leave.NewPolicyService()
+	leavePolicyHandler := leave.NewPolicyHandler(leavePolicyService)
+
 	app.Get("/api/leave/types", leaveHandler.GetLeaveTypesHandler)
 
 	app.Post("/api/leave/apply", leaveHandler.ApplyLeaveHandler)
@@ -84,6 +87,17 @@ func main() {
 	app.Get("/api/leave/balance/:employeeId", leaveHandler.GetEmployeeLeaveBalancesHandler)
 
 	app.Post("/api/leave/import", leaveHandler.ImportLeaveApplicationExcelHandler)
+
+	// LEAVE POLICY ROUTES
+	app.Post("/api/leave/policies", leavePolicyHandler.CreatePolicyHandler)
+
+	app.Get("/api/leave/policies", leavePolicyHandler.GetPoliciesHandler)
+
+	app.Get("/api/leave/policies/:id", leavePolicyHandler.GetPolicyHandler)
+
+	app.Put("/api/leave/policies/:id", leavePolicyHandler.UpdatePolicyHandler)
+
+	app.Delete("/api/leave/policies/:id", leavePolicyHandler.DeletePolicyHandler)
 
 	// =========================================================
 	// SALARY MODULE
