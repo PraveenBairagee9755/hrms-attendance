@@ -398,3 +398,88 @@ func (r *Repository) ImportAttendance(
 
 	return nil
 }
+
+func (r *Repository) GetEmployeeAttendance(
+	ctx context.Context,
+	employeeID string,
+	fromDate string,
+	toDate string,
+) ([]model.Attendance, error) {
+
+	employeeUUID, err := uuid.Parse(employeeID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid employee ID: %w", err)
+	}
+
+	query := `
+        SELECT
+            id,
+            "employeeId",
+            "date",
+            "checkInTime",
+            "checkOutTime",
+            status,
+            "workHours",
+            remarks,
+            "createdAt",
+            "updatedAt",
+            "markedBy"
+        FROM public."Attendance"
+        WHERE "employeeId" = $1
+    `
+
+	args := []interface{}{employeeUUID}
+
+	if fromDate != "" {
+		query += ` AND "date" >= $2::date`
+		args = append(args, fromDate)
+	}
+
+	if toDate != "" {
+		if fromDate != "" {
+			query += ` AND "date" <= $3::date`
+		} else {
+			query += ` AND "date" <= $2::date`
+		}
+		args = append(args, toDate)
+	}
+
+	query += ` ORDER BY "date" DESC, id DESC`
+
+	rows, err := r.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch attendance: %w", err)
+	}
+	defer rows.Close()
+
+	var attendance []model.Attendance
+
+	for rows.Next() {
+		var a model.Attendance
+
+		err := rows.Scan(
+			&a.ID,
+			&a.EmployeeId,
+			&a.Date,
+			&a.CheckInTime,
+			&a.CheckOutTime,
+			&a.Status,
+			&a.WorkHours,
+			&a.Remarks,
+			&a.CreatedAt,
+			&a.UpdatedAt,
+			&a.MarkedBy,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan attendance: %w", err)
+		}
+
+		attendance = append(attendance, a)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed while reading attendance: %w", err)
+	}
+
+	return attendance, nil
+}

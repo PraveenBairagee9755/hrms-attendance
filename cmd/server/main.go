@@ -45,6 +45,8 @@ func main() {
 
 	app.Post("/api/attendance/import", attendanceHandler.ImportAttendanceHandler)
 
+	app.Get("/api/attendance/:employeeId", attendanceHandler.GetEmployeeAttendanceHandler)
+
 	// =========================================================
 	// ATTENDANCE REGULARIZATION MODULE
 	// =========================================================

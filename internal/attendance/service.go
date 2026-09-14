@@ -3,8 +3,11 @@ package attendance
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
+
+	"hrms-attendance/db_gen/public/model"
 )
 
 // ClockInResult contains the result of a successful clock-in.
@@ -66,4 +69,43 @@ func (s *Service) ClockOut(
 	}
 
 	return s.repo.ClockOut(ctx, employeeID)
+}
+
+func (s *Service) GetEmployeeAttendance(
+	ctx context.Context,
+	employeeID string,
+	fromDate string,
+	toDate string,
+) ([]model.Attendance, error) {
+
+	if employeeID == "" {
+		return nil, errors.New("employee ID cannot be empty")
+	}
+
+	if _, err := uuid.Parse(employeeID); err != nil {
+		return nil, errors.New("invalid employee ID")
+	}
+
+	if fromDate != "" {
+		if _, err := time.Parse("2006-01-02", fromDate); err != nil {
+			return nil, errors.New("invalid fromDate, use YYYY-MM-DD")
+		}
+	}
+
+	if toDate != "" {
+		if _, err := time.Parse("2006-01-02", toDate); err != nil {
+			return nil, errors.New("invalid toDate, use YYYY-MM-DD")
+		}
+	}
+
+	if fromDate != "" && toDate != "" && fromDate > toDate {
+		return nil, errors.New("fromDate cannot be after toDate")
+	}
+
+	return s.repo.GetEmployeeAttendance(
+		ctx,
+		employeeID,
+		fromDate,
+		toDate,
+	)
 }

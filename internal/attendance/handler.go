@@ -126,3 +126,30 @@ func (h *Handler) ImportAttendanceHandler(c *fiber.Ctx) error {
 		"errors":      errorsList,
 	})
 }
+
+func (h *Handler) GetEmployeeAttendanceHandler(c *fiber.Ctx) error {
+
+	employeeID := c.Params("employeeId")
+	fromDate := c.Query("fromDate")
+	toDate := c.Query("toDate")
+
+	attendance, err := h.service.GetEmployeeAttendance(
+		c.UserContext(),
+		employeeID,
+		fromDate,
+		toDate,
+	)
+
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(
+		fiber.Map{
+			"employeeId": employeeID,
+			"fromDate":   fromDate,
+			"toDate":     toDate,
+			"attendance": attendance,
+		},
+	)
+}
