@@ -72,7 +72,8 @@ func main() {
 	leaveHandler := leave.NewHandler(leaveService)
 
 	leavePolicyService := leave.NewPolicyService()
-	leavePolicyHandler := leave.NewPolicyHandler(leavePolicyService)
+	leavePolicyRepo := leave.NewPolicyRepository(database)
+	leavePolicyHandler := leave.NewPolicyHandler(leavePolicyService, leavePolicyRepo)
 
 	app.Get("/api/leave/types", leaveHandler.GetLeaveTypesHandler)
 
@@ -93,9 +94,9 @@ func main() {
 	// LEAVE POLICY ROUTES
 	app.Post("/api/leave/policies", leavePolicyHandler.CreatePolicyHandler)
 
-	app.Get("/api/leave/policies", leavePolicyHandler.GetPoliciesHandler)
+	app.Get("/api/leave/policies", leavePolicyHandler.GetPoliciesDBHandler)
 
-	app.Get("/api/leave/policies/:id", leavePolicyHandler.GetPolicyHandler)
+	app.Get("/api/leave/policies/:id", leavePolicyHandler.GetPolicyDBHandler)
 
 	app.Put("/api/leave/policies/:id", leavePolicyHandler.UpdatePolicyHandler)
 

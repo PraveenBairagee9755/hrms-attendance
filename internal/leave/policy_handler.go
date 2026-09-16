@@ -1,10 +1,13 @@
 package leave
 
 import (
-	"context"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+
+	"hrms-attendance/db_gen/public/model"
 )
 
 type CreateLeavePolicyRequest struct {
@@ -20,144 +23,110 @@ type CreateLeavePolicyRequest struct {
 }
 
 type PolicyHandler struct {
-	service *PolicyService
+	service    *PolicyService
+	policyRepo *PolicyRepository
 }
 
-func NewPolicyHandler(service *PolicyService) *PolicyHandler {
+func NewPolicyHandler(service *PolicyService, policyRepo *PolicyRepository) *PolicyHandler {
 	return &PolicyHandler{
-		service: service,
+		service:    service,
+		policyRepo: policyRepo,
 	}
 }
 
 // POST /api/leave/policies
 func (h *PolicyHandler) CreatePolicyHandler(c *fiber.Ctx) error {
-
 	var req CreateLeavePolicyRequest
 
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
-	effectiveFrom, err := time.Parse(
-		"2006-01-02",
-		req.EffectiveFrom,
-	)
-
+	effectiveFrom, err := time.Parse("2006-01-02", req.EffectiveFrom)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "effectiveFrom must use YYYY-MM-DD format"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "effectiveFrom must be in YYYY-MM-DD format"})
 	}
 
-	policy := LeavePolicy{
+	if req.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "name is required"})
+	}
+
+	if req.LeaveTypeID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "leaveTypeId is required"})
+	}
+
+	leaveTypeID, err := uuid.Parse(req.LeaveTypeID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid leaveTypeId"})
+	}
+
+	if req.AnnualLimit <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "annualLimit must be greater than 0"})
+	}
+
+	if req.MaxConsecutiveDays <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "maxConsecutiveDays must be greater than 0"})
+	}
+
+	if req.MaxConsecutiveDays > req.AnnualLimit {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "maxConsecutiveDays cannot exceed annualLimit"})
+	}
+
+	if req.CarryForward &&
+		(req.MaxCarryForwardDays <= 0 ||
+			req.MaxCarryForwardDays > req.AnnualLimit) {
+
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid maxCarryForwardDays"})
+	}
+
+	status := req.Status
+	if status == "" {
+		status = "Active"
+	}
+
+	if status != "Active" && status != "Inactive" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be Active or Inactive"})
+	}
+
+	now := time.Now()
+
+	policy := model.LeavePolicy{
+		ID:                  uuid.New(),
 		Name:                req.Name,
-		LeaveTypeID:         req.LeaveTypeID,
-		AnnualLimit:         req.AnnualLimit,
-		MaxConsecutiveDays:  req.MaxConsecutiveDays,
+		LeaveTypeId:         leaveTypeID,
+		AnnualLimit:         decimal.NewFromFloat(req.AnnualLimit),
+		MaxConsecutiveDays:  decimal.NewFromFloat(req.MaxConsecutiveDays),
 		CarryForward:        req.CarryForward,
-		MaxCarryForwardDays: req.MaxCarryForwardDays,
+		MaxCarryForwardDays: decimal.NewFromFloat(req.MaxCarryForwardDays),
 		RequiresApproval:    req.RequiresApproval,
 		EffectiveFrom:       effectiveFrom,
-		Status:              req.Status,
+		Status:              status,
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}
 
-	result, err := h.service.CreatePolicy(
+	createdPolicy, err := h.policyRepo.CreatePolicy(
 		c.UserContext(),
 		policy,
 	)
 
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(
-		fiber.Map{
-			"message": "Leave policy created successfully",
-			"data":    result,
-		})
-}
-
-// GET /api/leave/policies
-func (h *PolicyHandler) GetPoliciesHandler(c *fiber.Ctx) error {
-
-	policies := h.service.GetPolicies(
-		c.UserContext(),
-	)
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"data": policies})
-}
-
-// GET /api/leave/policies/:id
-func (h *PolicyHandler) GetPolicyHandler(c *fiber.Ctx) error {
-
-	id := c.Params("id")
-
-	policy, err := h.service.GetPolicy(
-		c.UserContext(),
-		id,
-	)
-
-	if err != nil {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"data": policy})
+	return c.Status(fiber.StatusCreated).JSON(createdPolicy)
 }
 
 // PUT /api/leave/policies/:id
 func (h *PolicyHandler) UpdatePolicyHandler(c *fiber.Ctx) error {
-
 	id := c.Params("id")
 
-	var req CreateLeavePolicyRequest
-
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
-	}
-
-	effectiveFrom, err := time.Parse(
-		"2006-01-02",
-		req.EffectiveFrom,
-	)
-
+	policyID, err := uuid.Parse(id)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "effectiveFrom must use YYYY-MM-DD format"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid policy ID"})
 	}
 
-	policy := LeavePolicy{
-		Name:                req.Name,
-		LeaveTypeID:         req.LeaveTypeID,
-		AnnualLimit:         req.AnnualLimit,
-		MaxConsecutiveDays:  req.MaxConsecutiveDays,
-		CarryForward:        req.CarryForward,
-		MaxCarryForwardDays: req.MaxCarryForwardDays,
-		RequiresApproval:    req.RequiresApproval,
-		EffectiveFrom:       effectiveFrom,
-		Status:              req.Status,
-	}
-
-	result, err := h.service.UpdatePolicy(
-		context.Background(),
-		id,
-		policy,
-	)
-
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(
-		fiber.Map{
-			"message": "Leave policy updated successfully",
-			"data":    result,
-		},
-	)
-}
-
-// DELETE /api/leave/policies/:id
-func (h *PolicyHandler) DeletePolicyHandler(c *fiber.Ctx) error {
-
-	id := c.Params("id")
-
-	err := h.service.DeletePolicy(
+	existingPolicy, err := h.policyRepo.GetPolicy(
 		c.UserContext(),
 		id,
 	)
@@ -166,5 +135,113 @@ func (h *PolicyHandler) DeletePolicyHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 	}
 
+	var req CreateLeavePolicyRequest
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
+	}
+
+	effectiveFrom, err := time.Parse("2006-01-02", req.EffectiveFrom)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "effectiveFrom must be in YYYY-MM-DD format"})
+	}
+
+	if req.Name == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "name is required"})
+	}
+
+	if req.LeaveTypeID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "leaveTypeId is required"})
+	}
+
+	leaveTypeID, err := uuid.Parse(req.LeaveTypeID)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid leaveTypeId"})
+	}
+
+	if req.AnnualLimit <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "annualLimit must be greater than 0"})
+	}
+
+	if req.MaxConsecutiveDays <= 0 ||
+		req.MaxConsecutiveDays > req.AnnualLimit {
+
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid maxConsecutiveDays"})
+	}
+
+	if req.CarryForward &&
+		(req.MaxCarryForwardDays <= 0 ||
+			req.MaxCarryForwardDays > req.AnnualLimit) {
+
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid maxCarryForwardDays"})
+	}
+
+	status := req.Status
+	if status == "" {
+		status = existingPolicy.Status
+	}
+
+	if status != "Active" && status != "Inactive" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be Active or Inactive"})
+	}
+
+	policy := model.LeavePolicy{
+		ID:                  policyID,
+		Name:                req.Name,
+		LeaveTypeId:         leaveTypeID,
+		AnnualLimit:         decimal.NewFromFloat(req.AnnualLimit),
+		MaxConsecutiveDays:  decimal.NewFromFloat(req.MaxConsecutiveDays),
+		CarryForward:        req.CarryForward,
+		MaxCarryForwardDays: decimal.NewFromFloat(req.MaxCarryForwardDays),
+		RequiresApproval:    req.RequiresApproval,
+		EffectiveFrom:       effectiveFrom,
+		Status:              status,
+		CreatedAt:           existingPolicy.CreatedAt,
+		UpdatedAt:           time.Now(),
+	}
+
+	updatedPolicy, err := h.policyRepo.UpdatePolicy(
+		c.UserContext(),
+		policy,
+	)
+
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(updatedPolicy)
+}
+
+// DELETE /api/leave/policies/:id
+func (h *PolicyHandler) DeletePolicyHandler(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	if err := h.policyRepo.DeletePolicy(
+		c.UserContext(),
+		id,
+	); err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	}
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Leave policy deleted successfully"})
+}
+
+func (h *PolicyHandler) GetPoliciesDBHandler(c *fiber.Ctx) error {
+	policies, err := h.policyRepo.GetPolicies(c.UserContext())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"policies": policies})
+}
+
+func (h *PolicyHandler) GetPolicyDBHandler(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	policy, err := h.policyRepo.GetPolicy(c.UserContext(), id)
+	if err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(policy)
 }
