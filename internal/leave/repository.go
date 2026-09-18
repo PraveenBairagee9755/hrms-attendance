@@ -419,53 +419,110 @@ func (r *Repository) CancelLeave(
 // ApproveLeave approves a pending leave application.
 func (r *Repository) ApproveLeave(
 	ctx context.Context,
-	leaveApplicationID string,
-	approvedBy string,
+	leaveApplicationID uuid.UUID,
+	approverID uuid.UUID,
+	comments string,
 ) error {
 
-	applicationUUID, err := uuid.Parse(leaveApplicationID)
-	if err != nil {
-		return fmt.Errorf("invalid leave application ID: %w", err)
+	// 1. Get leave application
+	var employeeID uuid.UUID
+
+	err := r.DB.QueryRowContext(
+		ctx,
+		`
+		SELECT "employeeId"
+		FROM public."LeaveApplication"
+		WHERE id = $1
+		`,
+		leaveApplicationID,
+	).Scan(&employeeID)
+
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("leave application not found")
 	}
 
-	approverUUID, err := uuid.Parse(approvedBy)
 	if err != nil {
-		return fmt.Errorf("invalid approver ID: %w", err)
+		return fmt.Errorf("failed to find leave application: %w", err)
 	}
 
+	// 2. Check existing approvals
+	var approvalCount int
+
+	err = r.DB.QueryRowContext(
+		ctx,
+		`
+		SELECT COUNT(*)
+		FROM public."LeaveApproval"
+		WHERE "leaveApplicationId" = $1
+		  AND action = 'Approved'
+		`,
+		leaveApplicationID,
+	).Scan(&approvalCount)
+
+	if err != nil {
+		return fmt.Errorf("failed to check leave approvals: %w", err)
+	}
+
+	// 3. Determine approval level
+	approvalLevel := approvalCount + 1
+
+	if approvalLevel > 2 {
+		return fmt.Errorf("leave application has already received two approvals")
+	}
+
+	// 4. Create approval record
 	now := time.Now()
 
-	stmt := table.LeaveApplication.UPDATE(
-		table.LeaveApplication.Status,
-		table.LeaveApplication.ApprovedBy,
-		table.LeaveApplication.ApprovedAt,
-	).SET(
+	var commentsPtr *string
+	if comments != "" {
+		commentsPtr = &comments
+	}
+
+	stmt := table.LeaveApproval.INSERT(
+		table.LeaveApproval.LeaveApplicationId,
+		table.LeaveApproval.EmployeeId,
+		table.LeaveApproval.ApproverId,
+		table.LeaveApproval.ApprovalLevel,
+		table.LeaveApproval.Action,
+		table.LeaveApproval.Comments,
+		table.LeaveApproval.ActionAt,
+		table.LeaveApproval.CreatedAt,
+		table.LeaveApproval.UpdatedAt,
+	).VALUES(
+		leaveApplicationID,
+		employeeID,
+		approverID,
+		approvalLevel,
 		"Approved",
-		UUID(approverUUID),
+		commentsPtr,
 		now,
-	).WHERE(
-		table.LeaveApplication.ID.EQ(
-			UUID(applicationUUID),
-		).
-			AND(
-				table.LeaveApplication.Status.EQ(
-					String("Pending"),
-				),
-			),
+		now,
+		now,
 	)
 
-	result, err := stmt.ExecContext(ctx, r.DB)
+	_, err = stmt.ExecContext(ctx, r.DB)
+
 	if err != nil {
-		return fmt.Errorf("failed to approve leave: %w", err)
+		return fmt.Errorf("failed to create leave approval: %w", err)
 	}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check approval result: %w", err)
-	}
+	// 5. Only after Level 2 approval,
+	// mark the leave application as Approved.
+	if approvalLevel == 2 {
 
-	if rows == 0 {
-		return fmt.Errorf("leave application not found or is not pending")
+		_, err = r.DB.ExecContext(
+			ctx,
+			`
+            UPDATE public."LeaveApplication"
+            SET status = 'Approved'
+            WHERE id = $1
+            `,
+			leaveApplicationID,
+		)
+
+		if err != nil {
+			return fmt.Errorf("failed to update leave application: %w", err)
+		}
 	}
 
 	return nil
@@ -474,55 +531,183 @@ func (r *Repository) ApproveLeave(
 // RejectLeave rejects a pending leave application.
 func (r *Repository) RejectLeave(
 	ctx context.Context,
-	leaveApplicationID string,
-	rejectedBy string,
+	leaveApplicationID uuid.UUID,
+	rejectedBy uuid.UUID,
 	rejectionReason string,
 ) error {
 
-	applicationUUID, err := uuid.Parse(leaveApplicationID)
-	if err != nil {
-		return fmt.Errorf("invalid leave application ID: %w", err)
+	// 1. Get employee ID from LeaveApplication
+	var employeeID uuid.UUID
+
+	err := r.DB.QueryRowContext(
+		ctx,
+		`
+		SELECT "employeeId"
+		FROM public."LeaveApplication"
+		WHERE id = $1
+		`,
+		leaveApplicationID,
+	).Scan(&employeeID)
+
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("leave application not found")
 	}
 
-	rejectorUUID, err := uuid.Parse(rejectedBy)
 	if err != nil {
-		return fmt.Errorf("invalid rejector ID: %w", err)
+		return fmt.Errorf("failed to find leave application: %w", err)
 	}
 
-	stmt := table.LeaveApplication.UPDATE(
-		table.LeaveApplication.Status,
-		table.LeaveApplication.ApprovedBy,
-		table.LeaveApplication.RejectionReason,
-	).SET(
+	// 2. Check current leave status
+	var currentStatus string
+
+	err = r.DB.QueryRowContext(
+		ctx,
+		`
+		SELECT status
+		FROM public."LeaveApplication"
+		WHERE id = $1
+		`,
+		leaveApplicationID,
+	).Scan(&currentStatus)
+
+	if err != nil {
+		return fmt.Errorf("failed to get leave status: %w", err)
+	}
+
+	if currentStatus == "Approved" {
+		return fmt.Errorf("cannot reject an already approved leave")
+	}
+
+	if currentStatus == "Rejected" {
+		return fmt.Errorf("leave application is already rejected")
+	}
+
+	// 3. Determine approval level
+	var approvalCount int
+
+	err = r.DB.QueryRowContext(
+		ctx,
+		`
+		SELECT COUNT(*)
+		FROM public."LeaveApproval"
+		WHERE "leaveApplicationId" = $1
+		  AND action = 'Approved'
+		`,
+		leaveApplicationID,
+	).Scan(&approvalCount)
+
+	if err != nil {
+		return fmt.Errorf("failed to check approval level: %w", err)
+	}
+
+	approvalLevel := approvalCount + 1
+
+	if approvalLevel > 2 {
+		return fmt.Errorf("leave application has already completed approval")
+	}
+
+	// 4. Prevent same approver from acting twice
+	var existingApproval int
+
+	err = r.DB.QueryRowContext(
+		ctx,
+		`
+		SELECT COUNT(*)
+		FROM public."LeaveApproval"
+		WHERE "leaveApplicationId" = $1
+		  AND "approverId" = $2
+		`,
+		leaveApplicationID,
+		rejectedBy,
+	).Scan(&existingApproval)
+
+	if err != nil {
+		return fmt.Errorf("failed to check approver: %w", err)
+	}
+
+	if existingApproval > 0 {
+		return fmt.Errorf("approver has already taken action on this leave")
+	}
+
+	// 5. Insert rejection into LeaveApproval
+	now := time.Now()
+
+	var comments *string
+	if rejectionReason != "" {
+		comments = &rejectionReason
+	}
+
+	stmt := table.LeaveApproval.INSERT(
+		table.LeaveApproval.LeaveApplicationId,
+		table.LeaveApproval.EmployeeId,
+		table.LeaveApproval.ApproverId,
+		table.LeaveApproval.ApprovalLevel,
+		table.LeaveApproval.Action,
+		table.LeaveApproval.Comments,
+		table.LeaveApproval.ActionAt,
+		table.LeaveApproval.CreatedAt,
+		table.LeaveApproval.UpdatedAt,
+	).VALUES(
+		leaveApplicationID,
+		employeeID,
+		rejectedBy,
+		approvalLevel,
 		"Rejected",
-		UUID(rejectorUUID),
-		rejectionReason,
-	).WHERE(
-		table.LeaveApplication.ID.EQ(
-			UUID(applicationUUID),
-		).
-			AND(
-				table.LeaveApplication.Status.EQ(
-					String("Pending"),
-				),
-			),
+		comments,
+		now,
+		now,
+		now,
 	)
 
-	result, err := stmt.ExecContext(ctx, r.DB)
+	_, err = stmt.ExecContext(ctx, r.DB)
+
 	if err != nil {
-		return fmt.Errorf("failed to reject leave: %w", err)
+		return fmt.Errorf("failed to create leave rejection: %w", err)
 	}
 
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check rejection result: %w", err)
-	}
+	// 6. Rejection immediately finishes the leave workflow.
+	_, err = r.DB.ExecContext(
+		ctx,
+		`
+		UPDATE public."LeaveApplication"
+		SET status = 'Rejected'
+		WHERE id = $1
+		`,
+		leaveApplicationID,
+	)
 
-	if rows == 0 {
-		return fmt.Errorf("leave application not found or is not pending")
+	if err != nil {
+		return fmt.Errorf("failed to update leave application: %w", err)
 	}
 
 	return nil
+}
+
+func (r *Repository) GetLeaveApprovals(
+	ctx context.Context,
+	leaveApplicationID uuid.UUID,
+) ([]model.LeaveApproval, error) {
+
+	var approvals []model.LeaveApproval
+
+	stmt := SELECT(
+		table.LeaveApproval.AllColumns,
+	).FROM(
+		table.LeaveApproval,
+	).WHERE(
+		table.LeaveApproval.LeaveApplicationId.EQ(
+			UUID(leaveApplicationID),
+		),
+	).ORDER_BY(
+		table.LeaveApproval.ApprovalLevel.ASC(),
+	)
+
+	err := stmt.QueryContext(ctx, r.DB, &approvals)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get leave approvals: %w", err)
+	}
+
+	return approvals, nil
 }
 
 // ImportLeaveApplication inserts one leave application

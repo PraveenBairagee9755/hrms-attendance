@@ -77,9 +77,9 @@ func (h *Handler) ClockOutHandler(c *fiber.Ctx) error {
 	)
 
 	// Only return earlyBy when employee comes leave early.
-	if result.EarlyBy != "" {
-		response["earlyBy"] = result.EarlyBy
-	}
+	//if result.EarlyBy != "" {
+	//	response["earlyBy"] = result.EarlyBy
+	//}
 
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})

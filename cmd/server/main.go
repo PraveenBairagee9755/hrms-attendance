@@ -91,6 +91,8 @@ func main() {
 
 	app.Post("/api/leave/import", leaveHandler.ImportLeaveApplicationExcelHandler)
 
+	app.Get("/api/leave/approvals/:leaveApplicationId",leaveHandler.GetLeaveApprovals)
+
 	// LEAVE POLICY ROUTES
 	app.Post("/api/leave/policies", leavePolicyHandler.CreatePolicyHandler)
 

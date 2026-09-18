@@ -13,6 +13,7 @@ func UseSchema(schema string) {
 	Attendance = Attendance.FromSchema(schema)
 	EmployeeLeaveBalance = EmployeeLeaveBalance.FromSchema(schema)
 	LeaveApplication = LeaveApplication.FromSchema(schema)
+	LeaveApproval = LeaveApproval.FromSchema(schema)
 	LeavePolicy = LeavePolicy.FromSchema(schema)
 	LeaveType = LeaveType.FromSchema(schema)
 	Regularization = Regularization.FromSchema(schema)

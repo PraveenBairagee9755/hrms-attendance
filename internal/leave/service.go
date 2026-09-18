@@ -8,6 +8,7 @@ import (
 
 	"hrms-attendance/db_gen/public/model"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -216,6 +217,7 @@ func (s *Service) ApproveLeave(
 	ctx context.Context,
 	leaveApplicationID string,
 	approvedBy string,
+	comments string,
 ) error {
 
 	if leaveApplicationID == "" {
@@ -283,12 +285,23 @@ func (s *Service) ApproveLeave(
 		return fmt.Errorf("failed to update leave balance: %w", err)
 	}
 
-	// Approve application.
+	leaveUUID, err := uuid.Parse(leaveApplicationID)
+	if err != nil {
+		return fmt.Errorf("invalid leave application ID: %w", err)
+	}
+
+	approverUUID, err := uuid.Parse(approvedBy)
+	if err != nil {
+		return fmt.Errorf("invalid approver ID: %w", err)
+	}
+
 	err = s.repo.ApproveLeave(
 		ctx,
-		leaveApplicationID,
-		approvedBy,
+		leaveUUID,
+		approverUUID,
+		comments,
 	)
+
 	if err != nil {
 		return fmt.Errorf("failed to approve leave application: %w", err)
 	}
@@ -316,10 +329,48 @@ func (s *Service) RejectLeave(
 		return errors.New("rejection reason cannot be empty")
 	}
 
-	return s.repo.RejectLeave(
+	leaveUUID, err := uuid.Parse(leaveApplicationID)
+	if err != nil {
+		return fmt.Errorf("invalid leave application ID: %w", err)
+	}
+
+	rejecterUUID, err := uuid.Parse(rejectedBy)
+	if err != nil {
+		return fmt.Errorf("invalid rejectedBy ID: %w", err)
+	}
+
+	err = s.repo.RejectLeave(
 		ctx,
-		leaveApplicationID,
-		rejectedBy,
+		leaveUUID,
+		rejecterUUID,
 		rejectionReason,
 	)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *Service) GetLeaveApprovals(
+	ctx context.Context,
+	leaveApplicationID string,
+) ([]model.LeaveApproval, error) {
+
+	leaveUUID, err := uuid.Parse(leaveApplicationID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid leave application ID: %w", err)
+	}
+
+	approvals, err := s.repo.GetLeaveApprovals(
+		ctx,
+		leaveUUID,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return approvals, nil
 }

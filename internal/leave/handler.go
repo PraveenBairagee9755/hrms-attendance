@@ -35,6 +35,7 @@ type CancelLeaveRequest struct {
 
 type ApproveLeaveRequest struct {
 	ApprovedBy string `json:"approvedBy"`
+	Comments   string `json:"comments"`
 }
 
 type RejectLeaveRequest struct {
@@ -239,6 +240,7 @@ func (h *Handler) ApproveLeaveHandler(c *fiber.Ctx) error {
 		c.UserContext(),
 		leaveApplicationID,
 		req.ApprovedBy,
+		req.Comments,
 	)
 
 	if err != nil {
@@ -328,5 +330,28 @@ func (h *Handler) ImportLeaveApplicationExcelHandler(c *fiber.Ctx) error {
 		"successRows": successRows,
 		"failedRows":  failedRows,
 		"errors":      errors,
+	})
+}
+
+func (h *Handler) GetLeaveApprovals(c *fiber.Ctx) error {
+
+	leaveApplicationID := c.Params("leaveApplicationId")
+
+	if leaveApplicationID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "leave application ID is required"})
+	}
+
+	approvals, err := h.service.GetLeaveApprovals(
+		c.Context(),
+		leaveApplicationID,
+	)
+
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"leaveApplicationId": leaveApplicationID,
+		"approvals":          approvals,
 	})
 }
