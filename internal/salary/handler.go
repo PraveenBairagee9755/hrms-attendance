@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type Handler struct {
@@ -20,7 +20,7 @@ func NewHandler(service *Service) *Handler {
 
 // CalculateSalaryHandler calculates an employee's salary
 // after applying leave-limit and LOP deductions.
-func (h *Handler) CalculateSalaryHandler(c *fiber.Ctx) error {
+func (h *Handler) CalculateSalaryHandler(c fiber.Ctx) error {
 
 	// --------------------------------
 	// Get employee ID from URL
@@ -91,7 +91,7 @@ func (h *Handler) CalculateSalaryHandler(c *fiber.Ctx) error {
 }
 
 // ImportSalaryStructureExcelHandler handles salary structure Excel imports.
-func (h *Handler) ImportSalaryStructureExcelHandler(c *fiber.Ctx) error {
+func (h *Handler) ImportSalaryStructureExcelHandler(c fiber.Ctx) error {
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // RegularizationRequest maps incoming JSON for regularization submission.
@@ -42,11 +42,11 @@ func NewRegularizationHandler(service *Service) *RegularizationHandler {
 // CreateRegularizationHandler handles:
 //
 // POST /api/attendance/regularization
-func (h *RegularizationHandler) CreateRegularizationHandler(c *fiber.Ctx) error {
+func (h *RegularizationHandler) CreateRegularizationHandler(c fiber.Ctx) error {
 
 	var req RegularizationRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -94,7 +94,7 @@ func (h *RegularizationHandler) CreateRegularizationHandler(c *fiber.Ctx) error 
 	}
 
 	err = h.service.CreateRegularization(
-		c.UserContext(),
+		c.Context(),
 		req.EmployeeID,
 		req.AttendanceID,
 		requestedCheckIn,
@@ -117,7 +117,7 @@ func (h *RegularizationHandler) CreateRegularizationHandler(c *fiber.Ctx) error 
 // GetRegularizationHistoryHandler handles:
 //
 // GET /api/attendance/regularization/:employeeId
-func (h *RegularizationHandler) GetRegularizationHistoryHandler(c *fiber.Ctx) error {
+func (h *RegularizationHandler) GetRegularizationHistoryHandler(c fiber.Ctx) error {
 
 	employeeID := c.Params("employeeId")
 
@@ -126,7 +126,7 @@ func (h *RegularizationHandler) GetRegularizationHistoryHandler(c *fiber.Ctx) er
 	}
 
 	records, err := h.service.GetRegularizationHistory(
-		c.UserContext(),
+		c.Context(),
 		employeeID,
 	)
 
@@ -140,7 +140,7 @@ func (h *RegularizationHandler) GetRegularizationHistoryHandler(c *fiber.Ctx) er
 // ApproveRegularizationHandler handles:
 //
 // POST /api/attendance/regularization/approve/:id
-func (h *RegularizationHandler) ApproveRegularizationHandler(c *fiber.Ctx) error {
+func (h *RegularizationHandler) ApproveRegularizationHandler(c fiber.Ctx) error {
 
 	id := c.Params("id")
 
@@ -150,7 +150,7 @@ func (h *RegularizationHandler) ApproveRegularizationHandler(c *fiber.Ctx) error
 
 	var req ApproveRegularizationRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -159,7 +159,7 @@ func (h *RegularizationHandler) ApproveRegularizationHandler(c *fiber.Ctx) error
 	}
 
 	if err := h.service.ApproveRegularization(
-		c.UserContext(),
+		c.Context(),
 		id,
 		req.ApprovedBy,
 	); err != nil {
@@ -172,7 +172,7 @@ func (h *RegularizationHandler) ApproveRegularizationHandler(c *fiber.Ctx) error
 // RejectRegularizationHandler handles:
 //
 // POST /api/attendance/regularization/reject/:id
-func (h *RegularizationHandler) RejectRegularizationHandler(c *fiber.Ctx) error {
+func (h *RegularizationHandler) RejectRegularizationHandler(c fiber.Ctx) error {
 
 	id := c.Params("id")
 
@@ -182,7 +182,7 @@ func (h *RegularizationHandler) RejectRegularizationHandler(c *fiber.Ctx) error 
 
 	var req RejectRegularizationRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -195,7 +195,7 @@ func (h *RegularizationHandler) RejectRegularizationHandler(c *fiber.Ctx) error 
 	}
 
 	if err := h.service.RejectRegularization(
-		c.UserContext(),
+		c.Context(),
 		id,
 		req.RejectedBy,
 		req.RejectionReason,
@@ -209,7 +209,7 @@ func (h *RegularizationHandler) RejectRegularizationHandler(c *fiber.Ctx) error 
 // ImportRegularizationHandler handles:
 //
 // POST /api/attendance/regularization/import
-func (h *RegularizationHandler) ImportRegularizationHandler(c *fiber.Ctx) error {
+func (h *RegularizationHandler) ImportRegularizationHandler(c fiber.Ctx) error {
 
 	fileHeader, err := c.FormFile("file")
 
@@ -226,7 +226,7 @@ func (h *RegularizationHandler) ImportRegularizationHandler(c *fiber.Ctx) error 
 	defer file.Close()
 
 	totalRows, successRows, errorsList, err := h.service.ImportRegularizationExcel(
-		c.UserContext(),
+		c.Context(),
 		file,
 	)
 

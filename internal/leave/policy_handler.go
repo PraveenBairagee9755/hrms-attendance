@@ -3,7 +3,7 @@ package leave
 import (
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
@@ -35,10 +35,10 @@ func NewPolicyHandler(service *PolicyService, policyRepo *PolicyRepository) *Pol
 }
 
 // POST /api/leave/policies
-func (h *PolicyHandler) CreatePolicyHandler(c *fiber.Ctx) error {
+func (h *PolicyHandler) CreatePolicyHandler(c fiber.Ctx) error {
 	var req CreateLeavePolicyRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -106,7 +106,7 @@ func (h *PolicyHandler) CreatePolicyHandler(c *fiber.Ctx) error {
 	}
 
 	createdPolicy, err := h.policyRepo.CreatePolicy(
-		c.UserContext(),
+		c.Context(),
 		policy,
 	)
 
@@ -118,7 +118,7 @@ func (h *PolicyHandler) CreatePolicyHandler(c *fiber.Ctx) error {
 }
 
 // PUT /api/leave/policies/:id
-func (h *PolicyHandler) UpdatePolicyHandler(c *fiber.Ctx) error {
+func (h *PolicyHandler) UpdatePolicyHandler(c fiber.Ctx) error {
 	id := c.Params("id")
 
 	policyID, err := uuid.Parse(id)
@@ -127,7 +127,7 @@ func (h *PolicyHandler) UpdatePolicyHandler(c *fiber.Ctx) error {
 	}
 
 	existingPolicy, err := h.policyRepo.GetPolicy(
-		c.UserContext(),
+		c.Context(),
 		id,
 	)
 
@@ -137,7 +137,7 @@ func (h *PolicyHandler) UpdatePolicyHandler(c *fiber.Ctx) error {
 
 	var req CreateLeavePolicyRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -201,7 +201,7 @@ func (h *PolicyHandler) UpdatePolicyHandler(c *fiber.Ctx) error {
 	}
 
 	updatedPolicy, err := h.policyRepo.UpdatePolicy(
-		c.UserContext(),
+		c.Context(),
 		policy,
 	)
 
@@ -213,11 +213,11 @@ func (h *PolicyHandler) UpdatePolicyHandler(c *fiber.Ctx) error {
 }
 
 // DELETE /api/leave/policies/:id
-func (h *PolicyHandler) DeletePolicyHandler(c *fiber.Ctx) error {
+func (h *PolicyHandler) DeletePolicyHandler(c fiber.Ctx) error {
 	id := c.Params("id")
 
 	if err := h.policyRepo.DeletePolicy(
-		c.UserContext(),
+		c.Context(),
 		id,
 	); err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
@@ -226,8 +226,8 @@ func (h *PolicyHandler) DeletePolicyHandler(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Leave policy deleted successfully"})
 }
 
-func (h *PolicyHandler) GetPoliciesDBHandler(c *fiber.Ctx) error {
-	policies, err := h.policyRepo.GetPolicies(c.UserContext())
+func (h *PolicyHandler) GetPoliciesDBHandler(c fiber.Ctx) error {
+	policies, err := h.policyRepo.GetPolicies(c.Context())
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -235,10 +235,10 @@ func (h *PolicyHandler) GetPoliciesDBHandler(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"policies": policies})
 }
 
-func (h *PolicyHandler) GetPolicyDBHandler(c *fiber.Ctx) error {
+func (h *PolicyHandler) GetPolicyDBHandler(c fiber.Ctx) error {
 	id := c.Params("id")
 
-	policy, err := h.policyRepo.GetPolicy(c.UserContext(), id)
+	policy, err := h.policyRepo.GetPolicy(c.Context(), id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 	}

@@ -1,0 +1,608 @@
+{
+  "info": {
+    "name": "HRMS Attendance API (Local)",
+    "_postman_id": "hrms-attendance-local-collection",
+    "description": "Local endpoints for the Go/Fiber HRMS Attendance service (cmd/server/main.go). Run with `go run ./cmd/server` (defaults to port 8080) after setting DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (or DATABASE_URL).\n\nIMPORTANT: employeeId / leaveTypeId / approvedBy / rejectedBy / approverId are Postgres UUID columns and MUST be valid UUID strings, not free-text codes like EMP001. Replace the sample UUIDs with real ones from your database.\n\nNote on response casing: handwritten response DTOs (ClockInResult, ClockOutResult, SalaryCalculation) use camelCase JSON keys. Endpoints that return raw db_gen model structs (Attendance, Regularization, LeaveType, LeaveApplication, EmployeeLeaveBalance, LeaveApproval, LeavePolicy) have NO json tags, so Go's encoding/json falls back to the exported Go field names — those responses come back PascalCase (ID, EmployeeId, CreatedAt, ...).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "employeeId", "value": "11111111-1111-1111-1111-111111111111" },
+    { "key": "attendanceId", "value": "1" },
+    { "key": "regularizationId", "value": "22222222-2222-2222-2222-222222222222" },
+    { "key": "leaveTypeId", "value": "33333333-3333-3333-3333-333333333333" },
+    { "key": "leaveApplicationId", "value": "44444444-4444-4444-4444-444444444444" },
+    { "key": "policyId", "value": "55555555-5555-5555-5555-555555555555" },
+    { "key": "managerId", "value": "66666666-6666-6666-6666-666666666666" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+          },
+          "response": [
+            {
+              "name": "OK (plain text, not JSON)",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "text/plain; charset=utf-8" }],
+              "body": "HRMS Attendance Service is running perfectly!"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Attendance",
+      "item": [
+        {
+          "name": "Clock In",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/attendance/clock-in", "host": ["{{baseUrl}}"], "path": ["api", "attendance", "clock-in"] }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"employeeId\": \"11111111-1111-1111-1111-111111111111\",\n  \"inTime\": \"2026-09-22T09:15:00Z\",\n  \"message\": \"Successfully clocked in\",\n  \"lateBy\": \"15m\"\n}"
+            },
+            {
+              "name": "400 Bad Request",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"employeeId is required\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Clock Out",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/attendance/clock-out", "host": ["{{baseUrl}}"], "path": ["api", "attendance", "clock-out"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"employeeId\": \"11111111-1111-1111-1111-111111111111\",\n  \"outTime\": \"2026-09-22T18:05:00Z\",\n  \"totalWorkHours\": \"8h50m\",\n  \"message\": \"Successfully clocked out\"\n}"
+            },
+            {
+              "name": "400 Bad Request",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"employeeId is required\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Import Attendance (Excel)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": [], "description": "Excel (.xlsx) file, form field name MUST be 'file'" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/api/attendance/import", "host": ["{{baseUrl}}"], "path": ["api", "attendance", "import"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Attendance Excel import completed\",\n  \"totalRows\": 10,\n  \"successRows\": 9,\n  \"failedRows\": 1,\n  \"errors\": [\"row 6: invalid date format\"]\n}"
+            },
+            {
+              "name": "400 Bad Request (missing file)",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"Excel file is required\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Employee Attendance",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/attendance/{{employeeId}}?fromDate=2026-09-01&toDate=2026-09-22",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "attendance", "{{employeeId}}"],
+              "query": [
+                { "key": "fromDate", "value": "2026-09-01" },
+                { "key": "toDate", "value": "2026-09-22" }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"employeeId\": \"11111111-1111-1111-1111-111111111111\",\n  \"fromDate\": \"2026-09-01\",\n  \"toDate\": \"2026-09-22\",\n  \"attendance\": [\n    {\n      \"ID\": 1,\n      \"EmployeeId\": \"11111111-1111-1111-1111-111111111111\",\n      \"Date\": \"2026-09-22T00:00:00Z\",\n      \"CheckInTime\": \"2026-09-22T09:15:00Z\",\n      \"CheckOutTime\": \"2026-09-22T18:05:00Z\",\n      \"Status\": \"Present\",\n      \"WorkHours\": \"8.83\",\n      \"Remarks\": null,\n      \"CreatedAt\": \"2026-09-22T09:15:00Z\",\n      \"UpdatedAt\": \"2026-09-22T18:05:00Z\",\n      \"MarkedBy\": null\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Attendance Regularization",
+      "item": [
+        {
+          "name": "Create Regularization Request",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"attendanceId\": {{attendanceId}},\n  \"requestedCheckIn\": \"2026-09-22T09:00:00\",\n  \"requestedCheckOut\": \"2026-09-22T18:00:00\",\n  \"reason\": \"Forgot to clock in on time\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/attendance/regularization", "host": ["{{baseUrl}}"], "path": ["api", "attendance", "regularization"] }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Regularization request submitted successfully\",\n  \"employeeId\": \"11111111-1111-1111-1111-111111111111\",\n  \"attendanceId\": 1,\n  \"status\": \"Pending\"\n}"
+            },
+            {
+              "name": "400 Bad Request",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"requestedCheckOut must be after requestedCheckIn\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Regularization History",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/attendance/regularization/{{employeeId}}", "host": ["{{baseUrl}}"], "path": ["api", "attendance", "regularization", "{{employeeId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": [\n    {\n      \"ID\": \"22222222-2222-2222-2222-222222222222\",\n      \"EmployeeId\": \"11111111-1111-1111-1111-111111111111\",\n      \"AttendanceId\": 1,\n      \"RequestedCheckIn\": \"2026-09-22T09:00:00Z\",\n      \"RequestedCheckOut\": \"2026-09-22T18:00:00Z\",\n      \"Reason\": \"Forgot to clock in on time\",\n      \"Status\": \"Pending\",\n      \"ApprovedBy\": null,\n      \"ApprovedAt\": null,\n      \"RejectionReason\": null,\n      \"CreatedAt\": \"2026-09-22T10:00:00Z\",\n      \"UpdatedAt\": \"2026-09-22T10:00:00Z\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Approve Regularization",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"approvedBy\": \"{{managerId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/attendance/regularization/approve/{{regularizationId}}", "host": ["{{baseUrl}}"], "path": ["api", "attendance", "regularization", "approve", "{{regularizationId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Regularization approved successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Reject Regularization",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"rejectedBy\": \"{{managerId}}\",\n  \"rejectionReason\": \"Insufficient evidence\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/attendance/regularization/reject/{{regularizationId}}", "host": ["{{baseUrl}}"], "path": ["api", "attendance", "regularization", "reject", "{{regularizationId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Regularization rejected successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Import Regularization (Excel)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": [], "description": "Excel (.xlsx) file, form field name MUST be 'file'" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/api/attendance/regularization/import", "host": ["{{baseUrl}}"], "path": ["api", "attendance", "regularization", "import"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Regularization Excel import completed\",\n  \"totalRows\": 5,\n  \"successRows\": 5,\n  \"failedRows\": 0,\n  \"errors\": []\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Leave",
+      "item": [
+        {
+          "name": "Get Leave Types",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/leave/types", "host": ["{{baseUrl}}"], "path": ["api", "leave", "types"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": [\n    {\n      \"ID\": \"33333333-3333-3333-3333-333333333333\",\n      \"Name\": \"Casual Leave\",\n      \"Description\": \"Standard casual leave\",\n      \"MaxDaysPerYear\": 12,\n      \"IsCarryForward\": true,\n      \"MaxCarryForwardDays\": 3,\n      \"OrganizationId\": \"77777777-7777-7777-7777-777777777777\",\n      \"IsActive\": true,\n      \"CreatedAt\": \"2026-01-01T00:00:00Z\",\n      \"CreatedBy\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Apply Leave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"{{employeeId}}\",\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"startDate\": \"2026-10-01\",\n  \"endDate\": \"2026-10-03\",\n  \"reason\": \"Personal work\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/leave/apply", "host": ["{{baseUrl}}"], "path": ["api", "leave", "apply"] }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Leave application submitted successfully\"\n}"
+            },
+            {
+              "name": "400 Bad Request",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"startDate must use YYYY-MM-DD format\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Employee Leave History",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/leave/history/{{employeeId}}", "host": ["{{baseUrl}}"], "path": ["api", "leave", "history", "{{employeeId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": [\n    {\n      \"ID\": \"44444444-4444-4444-4444-444444444444\",\n      \"EmployeeId\": \"11111111-1111-1111-1111-111111111111\",\n      \"LeaveTypeId\": \"33333333-3333-3333-3333-333333333333\",\n      \"StartDate\": \"2026-10-01T00:00:00Z\",\n      \"EndDate\": \"2026-10-03T00:00:00Z\",\n      \"TotalDays\": \"3\",\n      \"Reason\": \"Personal work\",\n      \"Status\": \"Pending\",\n      \"AppliedAt\": \"2026-09-22T10:00:00Z\",\n      \"ApprovedBy\": null,\n      \"ApprovedAt\": null,\n      \"RejectionReason\": null,\n      \"CancelledAt\": null,\n      \"CancelledBy\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Cancel Leave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employeeId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/leave/cancel/{{leaveApplicationId}}", "host": ["{{baseUrl}}"], "path": ["api", "leave", "cancel", "{{leaveApplicationId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Leave cancelled successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Approve Leave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"approvedBy\": \"{{managerId}}\",\n  \"comments\": \"Approved\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/leave/approve/{{leaveApplicationId}}", "host": ["{{baseUrl}}"], "path": ["api", "leave", "approve", "{{leaveApplicationId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Leave approved successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Reject Leave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"rejectedBy\": \"{{managerId}}\",\n  \"rejectionReason\": \"Insufficient leave balance\"\n}" },
+            "url": { "raw": "{{baseUrl}}/api/leave/reject/{{leaveApplicationId}}", "host": ["{{baseUrl}}"], "path": ["api", "leave", "reject", "{{leaveApplicationId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Leave rejected successfully\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Employee Leave Balances",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/leave/balance/{{employeeId}}?year=2026",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "leave", "balance", "{{employeeId}}"],
+              "query": [{ "key": "year", "value": "2026" }]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": [\n    {\n      \"ID\": \"88888888-8888-8888-8888-888888888888\",\n      \"EmployeeId\": \"11111111-1111-1111-1111-111111111111\",\n      \"LeaveTypeId\": \"33333333-3333-3333-3333-333333333333\",\n      \"Year\": 2026,\n      \"TotalDays\": \"12\",\n      \"UsedDays\": \"3\",\n      \"RemainingDays\": \"9\",\n      \"CarriedForwardDays\": \"0\",\n      \"CreatedAt\": \"2026-01-01T00:00:00Z\",\n      \"UpdatedAt\": \"2026-09-22T10:00:00Z\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Import Leave Applications (Excel)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": [], "description": "Excel (.xlsx) file, form field name MUST be 'file'" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/api/leave/import", "host": ["{{baseUrl}}"], "path": ["api", "leave", "import"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"Leave applications imported successfully\",\n  \"successRows\": 4,\n  \"failedRows\": 0,\n  \"errors\": []\n}"
+            },
+            {
+              "name": "400 Bad Request (missing file)",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": false,\n  \"message\": \"Excel file is required\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Leave Approvals",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/leave/approvals/{{leaveApplicationId}}", "host": ["{{baseUrl}}"], "path": ["api", "leave", "approvals", "{{leaveApplicationId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"leaveApplicationId\": \"44444444-4444-4444-4444-444444444444\",\n  \"approvals\": [\n    {\n      \"ID\": \"99999999-9999-9999-9999-999999999999\",\n      \"LeaveApplicationId\": \"44444444-4444-4444-4444-444444444444\",\n      \"EmployeeId\": \"11111111-1111-1111-1111-111111111111\",\n      \"ApproverId\": \"66666666-6666-6666-6666-666666666666\",\n      \"ApprovalLevel\": 1,\n      \"Action\": \"Approved\",\n      \"Comments\": \"Approved\",\n      \"ActionAt\": \"2026-09-22T11:00:00Z\",\n      \"CreatedAt\": \"2026-09-22T10:00:00Z\",\n      \"UpdatedAt\": \"2026-09-22T11:00:00Z\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Leave Policies",
+      "item": [
+        {
+          "name": "Create Leave Policy",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Standard Casual Leave\",\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"annualLimit\": 12,\n  \"maxConsecutiveDays\": 5,\n  \"carryForward\": true,\n  \"maxCarryForwardDays\": 3,\n  \"requiresApproval\": true,\n  \"effectiveFrom\": \"2026-01-01\",\n  \"status\": \"Active\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/leave/policies", "host": ["{{baseUrl}}"], "path": ["api", "leave", "policies"] }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"ID\": \"55555555-5555-5555-5555-555555555555\",\n  \"Name\": \"Standard Casual Leave\",\n  \"LeaveTypeId\": \"33333333-3333-3333-3333-333333333333\",\n  \"AnnualLimit\": \"12\",\n  \"MaxConsecutiveDays\": \"5\",\n  \"CarryForward\": true,\n  \"MaxCarryForwardDays\": \"3\",\n  \"RequiresApproval\": true,\n  \"EffectiveFrom\": \"2026-01-01T00:00:00Z\",\n  \"Status\": \"Active\",\n  \"CreatedAt\": \"2026-09-22T10:00:00Z\",\n  \"UpdatedAt\": \"2026-09-22T10:00:00Z\"\n}"
+            },
+            {
+              "name": "400 Bad Request",
+              "status": "Bad Request",
+              "code": 400,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"maxConsecutiveDays cannot exceed annualLimit\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get All Leave Policies",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/leave/policies", "host": ["{{baseUrl}}"], "path": ["api", "leave", "policies"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"policies\": [\n    {\n      \"ID\": \"55555555-5555-5555-5555-555555555555\",\n      \"Name\": \"Standard Casual Leave\",\n      \"LeaveTypeId\": \"33333333-3333-3333-3333-333333333333\",\n      \"AnnualLimit\": \"12\",\n      \"MaxConsecutiveDays\": \"5\",\n      \"CarryForward\": true,\n      \"MaxCarryForwardDays\": \"3\",\n      \"RequiresApproval\": true,\n      \"EffectiveFrom\": \"2026-01-01T00:00:00Z\",\n      \"Status\": \"Active\",\n      \"CreatedAt\": \"2026-09-22T10:00:00Z\",\n      \"UpdatedAt\": \"2026-09-22T10:00:00Z\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Leave Policy By Id",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/leave/policies/{{policyId}}", "host": ["{{baseUrl}}"], "path": ["api", "leave", "policies", "{{policyId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"ID\": \"55555555-5555-5555-5555-555555555555\",\n  \"Name\": \"Standard Casual Leave\",\n  \"LeaveTypeId\": \"33333333-3333-3333-3333-333333333333\",\n  \"AnnualLimit\": \"12\",\n  \"MaxConsecutiveDays\": \"5\",\n  \"CarryForward\": true,\n  \"MaxCarryForwardDays\": \"3\",\n  \"RequiresApproval\": true,\n  \"EffectiveFrom\": \"2026-01-01T00:00:00Z\",\n  \"Status\": \"Active\",\n  \"CreatedAt\": \"2026-09-22T10:00:00Z\",\n  \"UpdatedAt\": \"2026-09-22T10:00:00Z\"\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"policy not found\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Leave Policy",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Standard Casual Leave\",\n  \"leaveTypeId\": \"{{leaveTypeId}}\",\n  \"annualLimit\": 12,\n  \"maxConsecutiveDays\": 5,\n  \"carryForward\": true,\n  \"maxCarryForwardDays\": 3,\n  \"requiresApproval\": true,\n  \"effectiveFrom\": \"2026-01-01\",\n  \"status\": \"Active\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/leave/policies/{{policyId}}", "host": ["{{baseUrl}}"], "path": ["api", "leave", "policies", "{{policyId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"ID\": \"55555555-5555-5555-5555-555555555555\",\n  \"Name\": \"Standard Casual Leave\",\n  \"LeaveTypeId\": \"33333333-3333-3333-3333-333333333333\",\n  \"AnnualLimit\": \"12\",\n  \"MaxConsecutiveDays\": \"5\",\n  \"CarryForward\": true,\n  \"MaxCarryForwardDays\": \"3\",\n  \"RequiresApproval\": true,\n  \"EffectiveFrom\": \"2026-01-01T00:00:00Z\",\n  \"Status\": \"Active\",\n  \"CreatedAt\": \"2026-09-22T10:00:00Z\",\n  \"UpdatedAt\": \"2026-09-22T12:00:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete Leave Policy",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/api/leave/policies/{{policyId}}", "host": ["{{baseUrl}}"], "path": ["api", "leave", "policies", "{{policyId}}"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"message\": \"Leave policy deleted successfully\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Salary",
+      "item": [
+        {
+          "name": "Calculate Salary",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/salary/calculate/{{employeeId}}?year=2026&month=9",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "salary", "calculate", "{{employeeId}}"],
+              "query": [
+                { "key": "year", "value": "2026" },
+                { "key": "month", "value": "9" }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"data\": {\n    \"employeeId\": \"11111111-1111-1111-1111-111111111111\",\n    \"year\": 2026,\n    \"month\": 9,\n    \"monthlySalary\": 50000,\n    \"totalLOPDays\": 1,\n    \"dailySalary\": 1666.67,\n    \"lopDeduction\": 1666.67,\n    \"calculatedSalary\": 48333.33,\n    \"leaveUsage\": [\n      {\n        \"LeaveTypeID\": \"33333333-3333-3333-3333-333333333333\",\n        \"LeaveTypeName\": \"Loss Of Pay\",\n        \"MaxDaysPerYear\": 0,\n        \"UsedDays\": 1,\n        \"RemainingDays\": 0,\n        \"LOPDays\": 1\n      }\n    ]\n  }\n}"
+            },
+            {
+              "name": "500 Internal Server Error",
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"salary structure does not contain a valid salary\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Import Salary Structure (Excel)",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": [], "description": "Excel (.xlsx) file, form field name MUST be 'file'" }
+              ]
+            },
+            "url": { "raw": "{{baseUrl}}/api/salary/import", "host": ["{{baseUrl}}"], "path": ["api", "salary", "import"] }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"success\": true,\n  \"message\": \"6 salary structure row(s) imported successfully\",\n  \"successRows\": 6,\n  \"failedRows\": 0,\n  \"errors\": []\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

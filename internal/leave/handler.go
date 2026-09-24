@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 type Handler struct {
@@ -48,10 +48,10 @@ type RejectLeaveRequest struct {
 // GET /api/leave/types
 // -------------------------
 
-func (h *Handler) GetLeaveTypesHandler(c *fiber.Ctx) error {
+func (h *Handler) GetLeaveTypesHandler(c fiber.Ctx) error {
 
 	leaveTypes, err := h.service.GetLeaveTypes(
-		c.UserContext(),
+		c.Context(),
 	)
 
 	if err != nil {
@@ -66,7 +66,7 @@ func (h *Handler) GetLeaveTypesHandler(c *fiber.Ctx) error {
 // GET /api/leave/balance/:employeeId?year=2026
 // -------------------------
 
-func (h *Handler) GetEmployeeLeaveBalancesHandler(c *fiber.Ctx) error {
+func (h *Handler) GetEmployeeLeaveBalancesHandler(c fiber.Ctx) error {
 
 	employeeID := c.Params("employeeId")
 
@@ -74,14 +74,14 @@ func (h *Handler) GetEmployeeLeaveBalancesHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "employeeId is required"})
 	}
 
-	year := c.QueryInt("year", time.Now().Year())
+	year := fiber.Query(c, "year", time.Now().Year())
 
 	if year <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid year"})
 	}
 
 	balances, err := h.service.GetEmployeeLeaveBalances(
-		c.UserContext(),
+		c.Context(),
 		employeeID,
 		year,
 	)
@@ -98,11 +98,11 @@ func (h *Handler) GetEmployeeLeaveBalancesHandler(c *fiber.Ctx) error {
 // POST /api/leave/apply
 // -------------------------
 
-func (h *Handler) ApplyLeaveHandler(c *fiber.Ctx) error {
+func (h *Handler) ApplyLeaveHandler(c fiber.Ctx) error {
 
 	var req ApplyLeaveRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -137,7 +137,7 @@ func (h *Handler) ApplyLeaveHandler(c *fiber.Ctx) error {
 	}
 
 	err = h.service.ApplyLeave(
-		c.UserContext(),
+		c.Context(),
 		req.EmployeeID,
 		req.LeaveTypeID,
 		startDate,
@@ -157,7 +157,7 @@ func (h *Handler) ApplyLeaveHandler(c *fiber.Ctx) error {
 // GET /api/leave/history/:employeeId
 // -------------------------
 
-func (h *Handler) GetEmployeeLeaveHistoryHandler(c *fiber.Ctx) error {
+func (h *Handler) GetEmployeeLeaveHistoryHandler(c fiber.Ctx) error {
 
 	employeeID := c.Params("employeeId")
 
@@ -166,7 +166,7 @@ func (h *Handler) GetEmployeeLeaveHistoryHandler(c *fiber.Ctx) error {
 	}
 
 	history, err := h.service.GetEmployeeLeaveHistory(
-		c.UserContext(),
+		c.Context(),
 		employeeID,
 	)
 
@@ -182,7 +182,7 @@ func (h *Handler) GetEmployeeLeaveHistoryHandler(c *fiber.Ctx) error {
 // POST /api/leave/cancel/:id
 // -------------------------
 
-func (h *Handler) CancelLeaveHandler(c *fiber.Ctx) error {
+func (h *Handler) CancelLeaveHandler(c fiber.Ctx) error {
 
 	leaveApplicationID := c.Params("id")
 
@@ -192,7 +192,7 @@ func (h *Handler) CancelLeaveHandler(c *fiber.Ctx) error {
 
 	var req CancelLeaveRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -201,7 +201,7 @@ func (h *Handler) CancelLeaveHandler(c *fiber.Ctx) error {
 	}
 
 	err := h.service.CancelLeave(
-		c.UserContext(),
+		c.Context(),
 		req.EmployeeID,
 		leaveApplicationID,
 	)
@@ -218,7 +218,7 @@ func (h *Handler) CancelLeaveHandler(c *fiber.Ctx) error {
 // POST /api/leave/approve/:id
 // -------------------------
 
-func (h *Handler) ApproveLeaveHandler(c *fiber.Ctx) error {
+func (h *Handler) ApproveLeaveHandler(c fiber.Ctx) error {
 
 	leaveApplicationID := c.Params("id")
 
@@ -228,7 +228,7 @@ func (h *Handler) ApproveLeaveHandler(c *fiber.Ctx) error {
 
 	var req ApproveLeaveRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -237,7 +237,7 @@ func (h *Handler) ApproveLeaveHandler(c *fiber.Ctx) error {
 	}
 
 	err := h.service.ApproveLeave(
-		c.UserContext(),
+		c.Context(),
 		leaveApplicationID,
 		req.ApprovedBy,
 		req.Comments,
@@ -255,7 +255,7 @@ func (h *Handler) ApproveLeaveHandler(c *fiber.Ctx) error {
 // POST /api/leave/reject/:id
 // -------------------------
 
-func (h *Handler) RejectLeaveHandler(c *fiber.Ctx) error {
+func (h *Handler) RejectLeaveHandler(c fiber.Ctx) error {
 
 	leaveApplicationID := c.Params("id")
 
@@ -265,7 +265,7 @@ func (h *Handler) RejectLeaveHandler(c *fiber.Ctx) error {
 
 	var req RejectLeaveRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -278,7 +278,7 @@ func (h *Handler) RejectLeaveHandler(c *fiber.Ctx) error {
 	}
 
 	err := h.service.RejectLeave(
-		c.UserContext(),
+		c.Context(),
 		leaveApplicationID,
 		req.RejectedBy,
 		req.RejectionReason,
@@ -292,7 +292,7 @@ func (h *Handler) RejectLeaveHandler(c *fiber.Ctx) error {
 }
 
 // ImportLeaveApplicationExcelHandler handles leave application Excel uploads.
-func (h *Handler) ImportLeaveApplicationExcelHandler(c *fiber.Ctx) error {
+func (h *Handler) ImportLeaveApplicationExcelHandler(c fiber.Ctx) error {
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -333,7 +333,7 @@ func (h *Handler) ImportLeaveApplicationExcelHandler(c *fiber.Ctx) error {
 	})
 }
 
-func (h *Handler) GetLeaveApprovals(c *fiber.Ctx) error {
+func (h *Handler) GetLeaveApprovals(c fiber.Ctx) error {
 
 	leaveApplicationID := c.Params("leaveApplicationId")
 

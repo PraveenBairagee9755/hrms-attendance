@@ -1,7 +1,7 @@
 package attendance
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // Handler manages HTTP transport routes.
@@ -22,11 +22,11 @@ type AttendanceRequest struct {
 }
 
 // ClockInHandler handles POST /api/attendance/clock-in.
-func (h *Handler) ClockInHandler(c *fiber.Ctx) error {
+func (h *Handler) ClockInHandler(c fiber.Ctx) error {
 
 	var req AttendanceRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -35,7 +35,7 @@ func (h *Handler) ClockInHandler(c *fiber.Ctx) error {
 	}
 
 	result, err := h.service.ClockIn(
-		c.UserContext(),
+		c.Context(),
 		req.EmployeeID,
 	)
 
@@ -59,11 +59,11 @@ func (h *Handler) ClockInHandler(c *fiber.Ctx) error {
 }
 
 // ClockOutHandler handles POST /api/attendance/clock-out.
-func (h *Handler) ClockOutHandler(c *fiber.Ctx) error {
+func (h *Handler) ClockOutHandler(c fiber.Ctx) error {
 
 	var req AttendanceRequest
 
-	if err := c.BodyParser(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
 	}
 
@@ -72,7 +72,7 @@ func (h *Handler) ClockOutHandler(c *fiber.Ctx) error {
 	}
 
 	result, err := h.service.ClockOut(
-		c.UserContext(),
+		c.Context(),
 		req.EmployeeID,
 	)
 
@@ -94,7 +94,7 @@ func (h *Handler) ClockOutHandler(c *fiber.Ctx) error {
 }
 
 // ImportAttendanceHandler handles POST /api/attendance/import.
-func (h *Handler) ImportAttendanceHandler(c *fiber.Ctx) error {
+func (h *Handler) ImportAttendanceHandler(c fiber.Ctx) error {
 
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -111,7 +111,7 @@ func (h *Handler) ImportAttendanceHandler(c *fiber.Ctx) error {
 	// Process Excel file through service layer.
 	totalRows, successRows, errorsList, err :=
 		h.service.ImportAttendanceExcel(
-			c.UserContext(),
+			c.Context(),
 			src,
 		)
 
@@ -128,14 +128,14 @@ func (h *Handler) ImportAttendanceHandler(c *fiber.Ctx) error {
 	})
 }
 
-func (h *Handler) GetEmployeeAttendanceHandler(c *fiber.Ctx) error {
+func (h *Handler) GetEmployeeAttendanceHandler(c fiber.Ctx) error {
 
 	employeeID := c.Params("employeeId")
 	fromDate := c.Query("fromDate")
 	toDate := c.Query("toDate")
 
 	attendance, err := h.service.GetEmployeeAttendance(
-		c.UserContext(),
+		c.Context(),
 		employeeID,
 		fromDate,
 		toDate,

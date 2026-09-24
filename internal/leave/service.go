@@ -77,10 +77,7 @@ func (s *Service) ApplyLeave(
 		year,
 	)
 	if err != nil {
-		return fmt.Errorf(
-			"failed to get leave balance: %w",
-			err,
-		)
+		return fmt.Errorf("failed to get leave balance: %w",err)
 	}
 
 	// EmployeeLeaveBalance uses decimal.Decimal.
@@ -239,10 +236,7 @@ func (s *Service) ApproveLeave(
 
 	// Only Pending applications can be approved.
 	if application.Status != "Pending" {
-		return fmt.Errorf(
-			"leave application is not pending, current status: %s",
-			application.Status,
-		)
+		return fmt.Errorf("leave application is not pending, current status: %s",application.Status)
 	}
 
 	// Get employee balance.

@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 
 	"hrms-attendance/db"
 	"hrms-attendance/internal/attendance"
@@ -120,7 +120,7 @@ func main() {
 	// HEALTH CHECK
 	// =========================================================
 
-	app.Get("/health", func(c *fiber.Ctx) error {
+	app.Get("/health", func(c fiber.Ctx) error {
 		return c.SendString("HRMS Attendance Service is running perfectly!")
 	})
 
