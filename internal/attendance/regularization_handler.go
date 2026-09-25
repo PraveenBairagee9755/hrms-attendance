@@ -27,6 +27,11 @@ type RejectRegularizationRequest struct {
 	RejectionReason string `json:"rejectionReason"`
 }
 
+// GetRegularizationHistoryRequest maps incoming JSON for fetching regularization history.
+type GetRegularizationHistoryRequest struct {
+	EmployeeID string `json:"employeeId"`
+}
+
 // RegularizationHandler handles Regularization HTTP requests.
 type RegularizationHandler struct {
 	service *Service
@@ -116,18 +121,22 @@ func (h *RegularizationHandler) CreateRegularizationHandler(c fiber.Ctx) error {
 
 // GetRegularizationHistoryHandler handles:
 //
-// GET /api/attendance/regularization/:employeeId
+// POST /api/attendance/regularization/get
 func (h *RegularizationHandler) GetRegularizationHistoryHandler(c fiber.Ctx) error {
 
-	employeeID := c.Params("employeeId")
+	var req GetRegularizationHistoryRequest
 
-	if employeeID == "" {
+	if err := c.Bind().Body(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
+	}
+
+	if req.EmployeeID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "employeeId is required"})
 	}
 
 	records, err := h.service.GetRegularizationHistory(
 		c.Context(),
-		employeeID,
+		req.EmployeeID,
 	)
 
 	if err != nil {

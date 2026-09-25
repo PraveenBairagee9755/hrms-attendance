@@ -2,7 +2,6 @@ package salary
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -18,17 +17,28 @@ func NewHandler(service *Service) *Handler {
 	}
 }
 
+// CalculateSalaryRequest maps incoming JSON for salary calculation.
+type CalculateSalaryRequest struct {
+	EmployeeID string `json:"employeeId"`
+	Year       int    `json:"year"`
+	Month      int    `json:"month"`
+}
+
 // CalculateSalaryHandler calculates an employee's salary
 // after applying leave-limit and LOP deductions.
 func (h *Handler) CalculateSalaryHandler(c fiber.Ctx) error {
 
+	var req CalculateSalaryRequest
+
+	if err := c.Bind().Body(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
+	}
+
 	// --------------------------------
-	// Get employee ID from URL
+	// Get employee ID
 	// --------------------------------
 
-	employeeID := c.Params("employeeId")
-
-	if employeeID == "" {
+	if req.EmployeeID == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "employee ID is required"})
 	}
 
@@ -36,30 +46,20 @@ func (h *Handler) CalculateSalaryHandler(c fiber.Ctx) error {
 	// Get year
 	// --------------------------------
 
-	yearString := c.Query("year")
+	year := req.Year
 
-	if yearString == "" {
-		yearString = strconv.Itoa(time.Now().Year())
-	}
-
-	year, err := strconv.Atoi(yearString)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid year"})
+	if year == 0 {
+		year = time.Now().Year()
 	}
 
 	// --------------------------------
 	// Get month
 	// --------------------------------
 
-	monthString := c.Query("month")
+	monthNumber := req.Month
 
-	if monthString == "" {
-		monthString = strconv.Itoa(int(time.Now().Month()))
-	}
-
-	monthNumber, err := strconv.Atoi(monthString)
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid month"})
+	if monthNumber == 0 {
+		monthNumber = int(time.Now().Month())
 	}
 
 	if monthNumber < 1 || monthNumber > 12 {
@@ -67,6 +67,7 @@ func (h *Handler) CalculateSalaryHandler(c fiber.Ctx) error {
 	}
 
 	month := time.Month(monthNumber)
+	employeeID := req.EmployeeID
 
 	// --------------------------------
 	// Call service

@@ -45,7 +45,7 @@ func main() {
 
 	app.Post("/api/attendance/import", attendanceHandler.ImportAttendanceHandler)
 
-	app.Get("/api/attendance/:employeeId", attendanceHandler.GetEmployeeAttendanceHandler)
+	app.Post("/api/attendance/get", attendanceHandler.GetEmployeeAttendanceHandler)
 
 	// =========================================================
 	// ATTENDANCE REGULARIZATION MODULE
@@ -55,7 +55,7 @@ func main() {
 
 	app.Post("/api/attendance/regularization", regularizationHandler.CreateRegularizationHandler)
 
-	app.Get("/api/attendance/regularization/:employeeId", regularizationHandler.GetRegularizationHistoryHandler)
+	app.Post("/api/attendance/regularization/get", regularizationHandler.GetRegularizationHistoryHandler)
 
 	app.Post("/api/attendance/regularization/approve/:id", regularizationHandler.ApproveRegularizationHandler)
 
@@ -112,7 +112,7 @@ func main() {
 	salaryService := salary.NewService(salaryRepo)
 	salaryHandler := salary.NewHandler(salaryService)
 
-	app.Get("/api/salary/calculate/:employeeId", salaryHandler.CalculateSalaryHandler)
+	app.Post("/api/salary/calculate", salaryHandler.CalculateSalaryHandler)
 
 	app.Post("/api/salary/import", salaryHandler.ImportSalaryStructureExcelHandler)
 

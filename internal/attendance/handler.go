@@ -4,6 +4,13 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
+// GetAttendanceRequest maps incoming JSON for fetching an employee's attendance.
+type GetAttendanceRequest struct {
+	EmployeeID string `json:"employeeId"`
+	FromDate   string `json:"fromDate"`
+	ToDate     string `json:"toDate"`
+}
+
 // Handler manages HTTP transport routes.
 type Handler struct {
 	service *Service
@@ -128,17 +135,26 @@ func (h *Handler) ImportAttendanceHandler(c fiber.Ctx) error {
 	})
 }
 
+
+
+// GetEmployeeAttendanceHandler handles POST /api/attendance/get.
 func (h *Handler) GetEmployeeAttendanceHandler(c fiber.Ctx) error {
 
-	employeeID := c.Params("employeeId")
-	fromDate := c.Query("fromDate")
-	toDate := c.Query("toDate")
+	var req GetAttendanceRequest
+
+	if err := c.Bind().Body(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request payload"})
+	}
+
+	if req.EmployeeID == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "employeeId is required"})
+	}
 
 	attendance, err := h.service.GetEmployeeAttendance(
 		c.Context(),
-		employeeID,
-		fromDate,
-		toDate,
+		req.EmployeeID,
+		req.FromDate,
+		req.ToDate,
 	)
 
 	if err != nil {
@@ -147,9 +163,9 @@ func (h *Handler) GetEmployeeAttendanceHandler(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(
 		fiber.Map{
-			"employeeId": employeeID,
-			"fromDate":   fromDate,
-			"toDate":     toDate,
+			"employeeId": req.EmployeeID,
+			"fromDate":   req.FromDate,
+			"toDate":     req.ToDate,
 			"attendance": attendance,
 		},
 	)
