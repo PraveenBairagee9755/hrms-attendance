@@ -14,18 +14,24 @@ import (
 )
 
 type SalaryStructure struct {
-	ID            uuid.UUID `sql:"primary_key"`
-	EmployeeId    uuid.UUID
-	EffectiveFrom time.Time
-	EffectiveTo   *time.Time
-	BasicSalary   decimal.Decimal
-	Hra           decimal.Decimal
-	Allowances    string
-	Deductions    string
-	GrossSalary   decimal.Decimal
-	NetSalary     decimal.Decimal
-	Currency      string
-	CreatedAt     time.Time
-	CreatedBy     *uuid.UUID
-	UpdatedAt     time.Time
+	ID              uuid.UUID `sql:"primary_key"`
+	EmployeeId      uuid.UUID
+	GrossSalary     decimal.Decimal
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	EmployeeName    *string
+	DateOfJoining   *time.Time
+	CtcPerMonth     *decimal.Decimal
+	DaysPaid        *decimal.Decimal
+	Salary          *decimal.Decimal
+	Late            *decimal.Decimal
+	Incentive       *decimal.Decimal
+	Conv            *decimal.Decimal
+	Advance         *decimal.Decimal
+	DeductionAmount *decimal.Decimal
+	AccountNo       *string
+	Ifsc            *string
+	PfDeduction     *decimal.Decimal
+	PfUanNumber     *string
+	Location        *string
 }

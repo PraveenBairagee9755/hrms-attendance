@@ -9,20 +9,23 @@ package model
 
 import (
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"time"
 )
 
 type Attendance struct {
-	ID           int32 `sql:"primary_key"`
-	EmployeeId   uuid.UUID
-	Date         time.Time
-	CheckInTime  *time.Time
-	CheckOutTime *time.Time
-	Status       *string
-	WorkHours    *decimal.Decimal
-	Remarks      *string
-	CreatedAt    *time.Time
-	UpdatedAt    *time.Time
-	MarkedBy     *uuid.UUID
+	ID              int32 `sql:"primary_key"`
+	EmployeeId      uuid.UUID
+	Date            time.Time
+	CheckInTime     *time.Time
+	CheckOutTime    *time.Time
+	Status          *string
+	WorkHours       *time.Time
+	Remarks         *string
+	CreatedAt       *time.Time
+	UpdatedAt       *time.Time
+	MarkedBy        *uuid.UUID
+	LateByMinutes   *int32
+	EarlyByMinutes  *int32
+	OvertimeMinutes *int32
+	Shift           *string
 }

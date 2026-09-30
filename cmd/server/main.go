@@ -139,6 +139,8 @@ func main() {
 	app.Post("/api/salary/calculate", salaryHandler.CalculateSalaryHandler)
 
 	app.Post("/api/salary/import", salaryHandler.ImportSalaryStructureExcelHandler)
+	
+	app.Post("/api/salary/get", salaryHandler.GetSalaryDetailsHandler)
 
 	// =========================================================
 	// HEALTH CHECK

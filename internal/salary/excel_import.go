@@ -13,17 +13,22 @@ import (
 )
 
 type SalaryStructureExcelRow struct {
-	EmployeeID    string
-	EffectiveFrom time.Time
-	EffectiveTo   *time.Time
-	BasicSalary   decimal.Decimal
-	HRA           decimal.Decimal
-	Allowances    string
-	Deductions    string
-	GrossSalary   decimal.Decimal
-	NetSalary     decimal.Decimal
-	Currency      string
-	CreatedBy     *uuid.UUID
+	EmployeeID      string
+	EmployeeName    string
+	DateOfJoining   *time.Time
+	CtcPerMonth     decimal.Decimal
+	DaysPaid        decimal.Decimal
+	Salary          decimal.Decimal
+	Late            decimal.Decimal
+	Incentive       decimal.Decimal
+	Conv            decimal.Decimal
+	Advance         decimal.Decimal
+	DeductionAmount decimal.Decimal
+	AccountNo       string
+	Ifsc            string
+	PfDeduction     decimal.Decimal
+	PfUanNumber     string
+	GrossSalary     decimal.Decimal
 }
 
 // ImportSalaryStructureExcel imports salary structures from Excel.
@@ -57,9 +62,9 @@ func (s *Service) ImportSalaryStructureExcel(
 
 	header := rows[0]
 
-	if len(header) < 11 {
+	if len(header) < 16 {
 		return 0, 0, nil, fmt.Errorf(
-			"invalid Excel format: expected columns EmployeeId, EffectiveFrom, EffectiveTo, BasicSalary, Hra, Allowances, Deductions, GrossSalary, NetSalary, Currency, CreatedBy",
+			"invalid Excel format: expected columns EmployeeId, EmployeeName, DateOfJoining, CtcPerMonth, DaysPaid, Salary, Late, Incentive, Conv, Advance, DeductionAmount, AccountNo, Ifsc, PfDeduction, PfUanNumber, GrossSalary",
 		)
 	}
 
@@ -72,7 +77,7 @@ func (s *Service) ImportSalaryStructureExcel(
 		excelRowNumber := rowIndex + 2
 		totalRows++
 
-		if len(row) < 10 {
+		if len(row) < 16 {
 			errorsList = append(errorsList,
 				fmt.Sprintf("row %d: missing required columns", excelRowNumber),
 			)
@@ -80,21 +85,11 @@ func (s *Service) ImportSalaryStructureExcel(
 		}
 
 		employeeID := strings.TrimSpace(row[0])
-		effectiveFromValue := strings.TrimSpace(row[1])
-		effectiveToValue := strings.TrimSpace(row[2])
-		basicSalaryValue := strings.TrimSpace(row[3])
-		hraValue := strings.TrimSpace(row[4])
-		allowances := strings.TrimSpace(row[5])
-		deductions := strings.TrimSpace(row[6])
-		grossSalaryValue := strings.TrimSpace(row[7])
-		netSalaryValue := strings.TrimSpace(row[8])
-		currency := strings.TrimSpace(row[9])
-
-		createdByValue := ""
-
-		if len(row) > 10 {
-			createdByValue = strings.TrimSpace(row[10])
-		}
+		employeeName := strings.TrimSpace(row[1])
+		dateOfJoiningValue := strings.TrimSpace(row[2])
+		accountNo := strings.TrimSpace(row[11])
+		ifsc := strings.TrimSpace(row[12])
+		pfUanNumber := strings.TrimSpace(row[14])
 
 		// Employee ID
 		if employeeID == "" {
@@ -119,156 +114,100 @@ func (s *Service) ImportSalaryStructureExcel(
 			continue
 		}
 
-		// Effective From
-		if effectiveFromValue == "" {
+		// Employee Name
+		if employeeName == "" {
 			errorsList = append(
 				errorsList,
 				fmt.Sprintf(
-					"row %d: effectiveFrom is required",
+					"row %d: employeeName is required",
 					excelRowNumber,
 				),
 			)
 			continue
 		}
 
-		effectiveFrom, err := parseSalaryExcelDate(effectiveFromValue)
-		if err != nil {
-			errorsList = append(
-				errorsList,
-				fmt.Sprintf(
-					"row %d: invalid effectiveFrom",
-					excelRowNumber,
-				),
-			)
-			continue
-		}
+		// Date Of Joining
+		var dateOfJoining *time.Time
 
-		// Effective To
-		var effectiveTo *time.Time
+		if dateOfJoiningValue != "" {
 
-		if effectiveToValue != "" {
-
-			parsedEffectiveTo, err := parseSalaryExcelDate(effectiveToValue)
+			parsedDateOfJoining, err := parseSalaryExcelDate(dateOfJoiningValue)
 			if err != nil {
 				errorsList = append(
 					errorsList,
 					fmt.Sprintf(
-						"row %d: invalid effectiveTo",
+						"row %d: invalid dateOfJoining",
 						excelRowNumber,
 					),
 				)
 				continue
 			}
 
-			effectiveTo = &parsedEffectiveTo
-
-			if effectiveTo.Before(effectiveFrom) {
-				errorsList = append(
-					errorsList,
-					fmt.Sprintf(
-						"row %d: effectiveTo cannot be before effectiveFrom",
-						excelRowNumber,
-					),
-				)
-				continue
-			}
-		}
-
-		// Basic Salary
-		basicSalary, err := decimal.NewFromString(basicSalaryValue)
-		if err != nil || basicSalary.IsNegative() {
-			errorsList = append(
-				errorsList,
-				fmt.Sprintf(
-					"row %d: invalid basicSalary",
-					excelRowNumber,
-				),
-			)
-			continue
-		}
-
-		// HRA
-		hra, err := decimal.NewFromString(hraValue)
-		if err != nil || hra.IsNegative() {
-			errorsList = append(
-				errorsList,
-				fmt.Sprintf(
-					"row %d: invalid hra",
-					excelRowNumber,
-				),
-			)
-			continue
-		}
-
-		// Gross Salary
-		grossSalary, err := decimal.NewFromString(grossSalaryValue)
-		if err != nil || grossSalary.IsNegative() {
-			errorsList = append(
-				errorsList,
-				fmt.Sprintf(
-					"row %d: invalid grossSalary",
-					excelRowNumber,
-				),
-			)
-			continue
-		}
-
-		// Net Salary
-		netSalary, err := decimal.NewFromString(netSalaryValue)
-		if err != nil || netSalary.IsNegative() {
-			errorsList = append(
-				errorsList,
-				fmt.Sprintf(
-					"row %d: invalid netSalary",
-					excelRowNumber,
-				),
-			)
-			continue
-		}
-
-		// Currency
-		if currency == "" {
-			errorsList = append(
-				errorsList,
-				fmt.Sprintf(
-					"row %d: currency is required",
-					excelRowNumber,
-				),
-			)
-			continue
-		}
-
-		// Created By
-		var createdBy *uuid.UUID
-
-		if createdByValue != "" {
-			createdByUUID, err := uuid.Parse(createdByValue)
-			if err != nil {
-				errorsList = append(
-					errorsList,
-					fmt.Sprintf(
-						"row %d: invalid createdBy",
-						excelRowNumber,
-					),
-				)
-				continue
-			}
-
-			createdBy = &createdByUUID
+			dateOfJoining = &parsedDateOfJoining
 		}
 
 		salaryStructure := SalaryStructureExcelRow{
 			EmployeeID:    employeeID,
-			EffectiveFrom: effectiveFrom,
-			EffectiveTo:   effectiveTo,
-			BasicSalary:   basicSalary,
-			HRA:           hra,
-			Allowances:    allowances,
-			Deductions:    deductions,
-			GrossSalary:   grossSalary,
-			NetSalary:     netSalary,
-			Currency:      currency,
-			CreatedBy:     createdBy,
+			EmployeeName:  employeeName,
+			DateOfJoining: dateOfJoining,
+			AccountNo:     accountNo,
+			Ifsc:          ifsc,
+			PfUanNumber:   pfUanNumber,
+		}
+
+		// Amount columns
+		amountColumns := []struct {
+			name     string
+			index    int
+			required bool
+			target   *decimal.Decimal
+		}{
+			{"ctcPerMonth", 3, true, &salaryStructure.CtcPerMonth},
+			{"daysPaid", 4, false, &salaryStructure.DaysPaid},
+			{"salary", 5, false, &salaryStructure.Salary},
+			{"late", 6, false, &salaryStructure.Late},
+			{"incentive", 7, false, &salaryStructure.Incentive},
+			{"conv", 8, false, &salaryStructure.Conv},
+			{"advance", 9, false, &salaryStructure.Advance},
+			{"deductionAmount", 10, false, &salaryStructure.DeductionAmount},
+			{"pfDeduction", 13, false, &salaryStructure.PfDeduction},
+			{"grossSalary", 15, true, &salaryStructure.GrossSalary},
+		}
+
+		var amountErr string
+
+		for _, column := range amountColumns {
+
+			value := strings.TrimSpace(row[column.index])
+
+			if value == "" {
+				if column.required {
+					amountErr = fmt.Sprintf("%s is required", column.name)
+					break
+				}
+				*column.target = decimal.Zero
+				continue
+			}
+
+			amount, err := decimal.NewFromString(value)
+			if err != nil || amount.IsNegative() {
+				amountErr = fmt.Sprintf("invalid %s", column.name)
+				break
+			}
+
+			*column.target = amount
+		}
+
+		if amountErr != "" {
+			errorsList = append(
+				errorsList,
+				fmt.Sprintf(
+					"row %d: %s",
+					excelRowNumber,
+					amountErr,
+				),
+			)
+			continue
 		}
 
 		err = s.repo.ImportSalaryStructure(

@@ -300,43 +300,68 @@ func (r *Repository) ImportAttendance(
 
 	stmt := table.Attendance.INSERT(
 		table.Attendance.EmployeeId,
-		table.Attendance.Date,
-		table.Attendance.CheckInTime,
-		table.Attendance.CheckOutTime,
-		table.Attendance.Status,
-		table.Attendance.CreatedAt,
-		table.Attendance.UpdatedAt,
-	).VALUES(
+        table.Attendance.Date,
+        table.Attendance.CheckInTime,
+        table.Attendance.CheckOutTime,
+        table.Attendance.Status,
+        table.Attendance.WorkHours,
+        table.Attendance.LateByMinutes,
+        table.Attendance.EarlyByMinutes,
+        table.Attendance.OvertimeMinutes,
+        table.Attendance.Shift,
+        table.Attendance.CreatedAt,
+        table.Attendance.UpdatedAt,
+    ).VALUES(
 		employeeUUID,
-		Date(
+        Date(
 			data.Date.Year(),
-			data.Date.Month(),
-			data.Date.Day(),
-		),
-		data.CheckInTime,
-		data.CheckOutTime,
-		data.Status,
-		now,
-		now,
-	).ON_CONFLICT(
+            data.Date.Month(),
+            data.Date.Day(),
+        ),
+        data.CheckInTime,
+        data.CheckOutTime,
+        data.Status,
+        data.WorkHours,
+        data.LateByMinutes,
+        data.EarlyByMinutes,
+        data.OvertimeMinutes,
+        data.Shift,
+        now,
+        now,
+    ).ON_CONFLICT(
 		table.Attendance.EmployeeId,
 		table.Attendance.Date,
 	).DO_UPDATE(
 		SET(
 			table.Attendance.CheckInTime.SET(
 				table.Attendance.EXCLUDED.CheckInTime,
-			),
-			table.Attendance.CheckOutTime.SET(
+            ),
+            table.Attendance.CheckOutTime.SET(
 				table.Attendance.EXCLUDED.CheckOutTime,
-			),
-			table.Attendance.Status.SET(
+            ),
+            table.Attendance.Status.SET(
 				table.Attendance.EXCLUDED.Status,
-			),
-			table.Attendance.UpdatedAt.SET(
+            ),
+            table.Attendance.WorkHours.SET(
+				table.Attendance.EXCLUDED.WorkHours,
+            ),
+            table.Attendance.LateByMinutes.SET(
+				table.Attendance.EXCLUDED.LateByMinutes,
+            ),
+            table.Attendance.EarlyByMinutes.SET(
+				table.Attendance.EXCLUDED.EarlyByMinutes,
+            ),
+            table.Attendance.OvertimeMinutes.SET(
+				table.Attendance.EXCLUDED.OvertimeMinutes,
+            ),
+            table.Attendance.Shift.SET(
+				table.Attendance.EXCLUDED.Shift,
+            ),
+            table.Attendance.UpdatedAt.SET(
 				table.Attendance.EXCLUDED.UpdatedAt,
-			),
-		),
-	)
+            ),
+        ),
+    )
 
 	_, err = stmt.ExecContext(ctx, r.DB)
 	if err != nil {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"time"
+	"strconv"
+    "strings"
 
 	"github.com/google/uuid"
 	"github.com/xuri/excelize/v2"
@@ -12,11 +14,16 @@ import (
 
 // AttendanceExcelRow represents one row from the Excel file.
 type AttendanceExcelRow struct {
-	EmployeeID   string
-	Date         time.Time
-	CheckInTime  *time.Time
-	CheckOutTime *time.Time
-	Status       string
+    EmployeeID       string
+    Date             time.Time
+    CheckInTime      *time.Time
+    CheckOutTime     *time.Time
+    Status           string
+    WorkHours        *time.Time
+    LateByMinutes    int
+    EarlyByMinutes   int
+    OvertimeMinutes  int
+    Shift            string
 }
 
 // ImportAttendanceExcel reads attendance data from an Excel file.
@@ -137,13 +144,80 @@ func (s *Service) ImportAttendanceExcel(
 			continue
 		}
 
+		durationValue := ""
+        lateByValue := ""
+        earlyByValue := ""
+        overtimeValue := ""
+        shift := ""
+
+        if len(row) > 5 {
+			durationValue = strings.TrimSpace(row[5])
+        }
+
+        if len(row) > 6 {
+			lateByValue = strings.TrimSpace(row[6])
+        }
+
+        if len(row) > 7 {
+			earlyByValue = strings.TrimSpace(row[7])
+        }
+
+        if len(row) > 8 {
+			overtimeValue = strings.TrimSpace(row[8])
+        }
+
+        if len(row) > 9 {
+			shift = strings.TrimSpace(row[9])
+        }
+
+		workHours, err := parseWorkHours(durationValue)
+        if err != nil {
+			errorsList = append(
+				errorsList,
+                fmt.Sprintf("row %d: invalid duration: %v", excelRowNumber, err),
+            )
+            continue
+        }
+
+        lateByMinutes, err := parseDurationMinutes(lateByValue)
+        if err != nil {
+			errorsList = append(
+				errorsList,
+                fmt.Sprintf("row %d: invalid lateBy: %v", excelRowNumber, err),
+            )
+            continue
+        }
+
+        earlyByMinutes, err := parseDurationMinutes(earlyByValue)
+        if err != nil {
+			errorsList = append(
+				errorsList,
+				fmt.Sprintf("row %d: invalid earlyBy: %v", excelRowNumber, err),
+            )
+            continue
+        }
+
+        overtimeMinutes, err := parseDurationMinutes(overtimeValue)
+        if err != nil {
+			errorsList = append(
+				errorsList,
+                fmt.Sprintf("row %d: invalid overtime: %v", excelRowNumber, err),
+            )
+            continue
+        }
+
 		attendance := AttendanceExcelRow{
-			EmployeeID:   employeeID,
-			Date:         attendanceDate,
-			CheckInTime:  checkInTime,
-			CheckOutTime: checkOutTime,
-			Status:       status,
-		}
+			EmployeeID:       employeeID,
+            Date:             attendanceDate,
+            CheckInTime:      checkInTime,
+            CheckOutTime:     checkOutTime,
+            Status:           status,
+            WorkHours:        workHours,
+            LateByMinutes:    lateByMinutes,
+            EarlyByMinutes:   earlyByMinutes,
+            OvertimeMinutes:  overtimeMinutes,
+            Shift:            shift,
+        }
 
 		// Save the row using the repository.
 		if err := s.repo.ImportAttendance(ctx, attendance); err != nil {
@@ -158,6 +232,52 @@ func (s *Service) ImportAttendanceExcel(
 	}
 
 	return totalRows, successRows, errorsList, nil
+}
+
+func parseWorkHours(value string) (*time.Time, error) {
+    value = strings.TrimSpace(value)
+
+    if value == "" || value == "-" {
+        return nil, nil
+    }
+
+    t, err := time.Parse("15:04", value)
+    if err != nil {
+        return nil, fmt.Errorf("invalid duration %q: %w", value, err)
+    }
+
+    return &t, nil
+}
+
+func parseDurationMinutes(value string) (int, error) {
+    value = strings.TrimSpace(value)
+
+    if value == "" || value == "-" {
+        return 0, nil
+    }
+
+    // Handle HH:MM
+    parts := strings.Split(value, ":")
+
+    if len(parts) != 2 {
+        return 0, fmt.Errorf("invalid duration format: %s", value)
+    }
+
+    hours, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+    if err != nil {
+        return 0, fmt.Errorf("invalid duration hours: %s", value)
+    }
+
+    minutes, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+    if err != nil {
+        return 0, fmt.Errorf("invalid duration minutes: %s", value)
+    }
+
+    if minutes < 0 || minutes >= 60 {
+        return 0, fmt.Errorf("invalid duration: %s", value)
+    }
+
+    return hours*60 + minutes, nil
 }
 
 func parseExcelDate(value string) (time.Time, error) {

@@ -17,20 +17,26 @@ type salaryStructureTable struct {
 	postgres.Table
 
 	// Columns
-	ID            postgres.ColumnString
-	EmployeeId    postgres.ColumnString
-	EffectiveFrom postgres.ColumnDate
-	EffectiveTo   postgres.ColumnDate
-	BasicSalary   postgres.ColumnFloat
-	Hra           postgres.ColumnFloat
-	Allowances    postgres.ColumnString
-	Deductions    postgres.ColumnString
-	GrossSalary   postgres.ColumnFloat
-	NetSalary     postgres.ColumnFloat
-	Currency      postgres.ColumnString
-	CreatedAt     postgres.ColumnTimestamp
-	CreatedBy     postgres.ColumnString
-	UpdatedAt     postgres.ColumnTimestamp
+	ID              postgres.ColumnString
+	EmployeeId      postgres.ColumnString
+	GrossSalary     postgres.ColumnFloat
+	CreatedAt       postgres.ColumnTimestamp
+	UpdatedAt       postgres.ColumnTimestamp
+	EmployeeName    postgres.ColumnString
+	DateOfJoining   postgres.ColumnDate
+	CtcPerMonth     postgres.ColumnFloat
+	DaysPaid        postgres.ColumnFloat
+	Salary          postgres.ColumnFloat
+	Late            postgres.ColumnFloat
+	Incentive       postgres.ColumnFloat
+	Conv            postgres.ColumnFloat
+	Advance         postgres.ColumnFloat
+	DeductionAmount postgres.ColumnFloat
+	AccountNo       postgres.ColumnString
+	Ifsc            postgres.ColumnString
+	PfDeduction     postgres.ColumnFloat
+	PfUanNumber     postgres.ColumnString
+	Location        postgres.ColumnString
 
 	AllColumns     postgres.ColumnList
 	MutableColumns postgres.ColumnList
@@ -72,43 +78,55 @@ func newSalaryStructureTable(schemaName, tableName, alias string) *SalaryStructu
 
 func newSalaryStructureTableImpl(schemaName, tableName, alias string) salaryStructureTable {
 	var (
-		IDColumn            = postgres.StringColumn("id")
-		EmployeeIdColumn    = postgres.StringColumn("employeeId")
-		EffectiveFromColumn = postgres.DateColumn("effectiveFrom")
-		EffectiveToColumn   = postgres.DateColumn("effectiveTo")
-		BasicSalaryColumn   = postgres.FloatColumn("basicSalary")
-		HraColumn           = postgres.FloatColumn("hra")
-		AllowancesColumn    = postgres.StringColumn("allowances")
-		DeductionsColumn    = postgres.StringColumn("deductions")
-		GrossSalaryColumn   = postgres.FloatColumn("grossSalary")
-		NetSalaryColumn     = postgres.FloatColumn("netSalary")
-		CurrencyColumn      = postgres.StringColumn("currency")
-		CreatedAtColumn     = postgres.TimestampColumn("createdAt")
-		CreatedByColumn     = postgres.StringColumn("createdBy")
-		UpdatedAtColumn     = postgres.TimestampColumn("updatedAt")
-		allColumns          = postgres.ColumnList{IDColumn, EmployeeIdColumn, EffectiveFromColumn, EffectiveToColumn, BasicSalaryColumn, HraColumn, AllowancesColumn, DeductionsColumn, GrossSalaryColumn, NetSalaryColumn, CurrencyColumn, CreatedAtColumn, CreatedByColumn, UpdatedAtColumn}
-		mutableColumns      = postgres.ColumnList{EmployeeIdColumn, EffectiveFromColumn, EffectiveToColumn, BasicSalaryColumn, HraColumn, AllowancesColumn, DeductionsColumn, GrossSalaryColumn, NetSalaryColumn, CurrencyColumn, CreatedAtColumn, CreatedByColumn, UpdatedAtColumn}
-		defaultColumns      = postgres.ColumnList{IDColumn, BasicSalaryColumn, HraColumn, AllowancesColumn, DeductionsColumn, GrossSalaryColumn, NetSalaryColumn, CurrencyColumn, CreatedAtColumn, UpdatedAtColumn}
+		IDColumn              = postgres.StringColumn("id")
+		EmployeeIdColumn      = postgres.StringColumn("employeeId")
+		GrossSalaryColumn     = postgres.FloatColumn("grossSalary")
+		CreatedAtColumn       = postgres.TimestampColumn("createdAt")
+		UpdatedAtColumn       = postgres.TimestampColumn("updatedAt")
+		EmployeeNameColumn    = postgres.StringColumn("employeeName")
+		DateOfJoiningColumn   = postgres.DateColumn("dateOfJoining")
+		CtcPerMonthColumn     = postgres.FloatColumn("ctcPerMonth")
+		DaysPaidColumn        = postgres.FloatColumn("daysPaid")
+		SalaryColumn          = postgres.FloatColumn("salary")
+		LateColumn            = postgres.FloatColumn("late")
+		IncentiveColumn       = postgres.FloatColumn("incentive")
+		ConvColumn            = postgres.FloatColumn("conv")
+		AdvanceColumn         = postgres.FloatColumn("advance")
+		DeductionAmountColumn = postgres.FloatColumn("deductionAmount")
+		AccountNoColumn       = postgres.StringColumn("accountNo")
+		IfscColumn            = postgres.StringColumn("ifsc")
+		PfDeductionColumn     = postgres.FloatColumn("pfDeduction")
+		PfUanNumberColumn     = postgres.StringColumn("pfUanNumber")
+		LocationColumn        = postgres.StringColumn("location")
+		allColumns            = postgres.ColumnList{IDColumn, EmployeeIdColumn, GrossSalaryColumn, CreatedAtColumn, UpdatedAtColumn, EmployeeNameColumn, DateOfJoiningColumn, CtcPerMonthColumn, DaysPaidColumn, SalaryColumn, LateColumn, IncentiveColumn, ConvColumn, AdvanceColumn, DeductionAmountColumn, AccountNoColumn, IfscColumn, PfDeductionColumn, PfUanNumberColumn, LocationColumn}
+		mutableColumns        = postgres.ColumnList{EmployeeIdColumn, GrossSalaryColumn, CreatedAtColumn, UpdatedAtColumn, EmployeeNameColumn, DateOfJoiningColumn, CtcPerMonthColumn, DaysPaidColumn, SalaryColumn, LateColumn, IncentiveColumn, ConvColumn, AdvanceColumn, DeductionAmountColumn, AccountNoColumn, IfscColumn, PfDeductionColumn, PfUanNumberColumn, LocationColumn}
+		defaultColumns        = postgres.ColumnList{IDColumn, GrossSalaryColumn, CreatedAtColumn, UpdatedAtColumn}
 	)
 
 	return salaryStructureTable{
 		Table: postgres.NewTable(schemaName, tableName, alias, allColumns...),
 
 		//Columns
-		ID:            IDColumn,
-		EmployeeId:    EmployeeIdColumn,
-		EffectiveFrom: EffectiveFromColumn,
-		EffectiveTo:   EffectiveToColumn,
-		BasicSalary:   BasicSalaryColumn,
-		Hra:           HraColumn,
-		Allowances:    AllowancesColumn,
-		Deductions:    DeductionsColumn,
-		GrossSalary:   GrossSalaryColumn,
-		NetSalary:     NetSalaryColumn,
-		Currency:      CurrencyColumn,
-		CreatedAt:     CreatedAtColumn,
-		CreatedBy:     CreatedByColumn,
-		UpdatedAt:     UpdatedAtColumn,
+		ID:              IDColumn,
+		EmployeeId:      EmployeeIdColumn,
+		GrossSalary:     GrossSalaryColumn,
+		CreatedAt:       CreatedAtColumn,
+		UpdatedAt:       UpdatedAtColumn,
+		EmployeeName:    EmployeeNameColumn,
+		DateOfJoining:   DateOfJoiningColumn,
+		CtcPerMonth:     CtcPerMonthColumn,
+		DaysPaid:        DaysPaidColumn,
+		Salary:          SalaryColumn,
+		Late:            LateColumn,
+		Incentive:       IncentiveColumn,
+		Conv:            ConvColumn,
+		Advance:         AdvanceColumn,
+		DeductionAmount: DeductionAmountColumn,
+		AccountNo:       AccountNoColumn,
+		Ifsc:            IfscColumn,
+		PfDeduction:     PfDeductionColumn,
+		PfUanNumber:     PfUanNumberColumn,
+		Location:        LocationColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

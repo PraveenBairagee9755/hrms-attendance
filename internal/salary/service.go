@@ -8,6 +8,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+
+    "hrms-attendance/db_gen/public/model"
 )
 
 type Service struct {
@@ -55,23 +57,10 @@ func (s *Service) CalculateSalary(
 		return nil, errors.New("invalid month")
 	}
 
-	// Date used to find the active salary structure.
-	calculationDate := time.Date(
-		year,
-		month,
-		1,
-		0,
-		0,
-		0,
-		0,
-		time.UTC,
-	)
-
 	// Get employee salary structure.
 	salaryStructure, err := s.repo.GetSalaryStructure(
 		ctx,
 		employeeID,
-		calculationDate,
 	)
 
 	if err != nil {
@@ -115,12 +104,13 @@ func (s *Service) CalculateSalary(
 	// Get salary
 	// --------------------------------
 
-	// Jet generated NetSalary as decimal.Decimal.
-	monthlySalaryDecimal := salaryStructure.NetSalary
+	// Jet generated GrossSalary as decimal.Decimal.
+	monthlySalaryDecimal := salaryStructure.GrossSalary
 
-	// If net salary is zero, use gross salary.
-	if monthlySalaryDecimal.LessThanOrEqual(decimal.Zero) {
-		monthlySalaryDecimal = salaryStructure.GrossSalary
+	// If gross salary is zero, use CTC per month.
+	if monthlySalaryDecimal.LessThanOrEqual(decimal.Zero) &&
+		salaryStructure.CtcPerMonth != nil {
+		monthlySalaryDecimal = *salaryStructure.CtcPerMonth
 	}
 
 	if monthlySalaryDecimal.LessThanOrEqual(decimal.Zero) {
@@ -206,4 +196,20 @@ func (s *SalaryCalculation) String() string {
 		s.LOPDeduction,
 		s.CalculatedSalary,
 	)
+}
+
+func (s *Service) GetSalaryDetails(
+    ctx context.Context,
+    employeeID string,
+) (*model.SalaryStructure, error) {
+
+    if employeeID == "" {
+        return nil, errors.New("employee ID cannot be empty")
+    }
+
+    if _, err := uuid.Parse(employeeID); err != nil {
+        return nil, errors.New("invalid employee ID")
+    }
+
+    return s.repo.GetSalaryDetails(ctx, employeeID)
 }

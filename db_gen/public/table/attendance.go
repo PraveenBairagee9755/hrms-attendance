@@ -17,17 +17,21 @@ type attendanceTable struct {
 	postgres.Table
 
 	// Columns
-	ID           postgres.ColumnInteger
-	EmployeeId   postgres.ColumnString
-	Date         postgres.ColumnDate
-	CheckInTime  postgres.ColumnTimestampz
-	CheckOutTime postgres.ColumnTimestampz
-	Status       postgres.ColumnString
-	WorkHours    postgres.ColumnFloat
-	Remarks      postgres.ColumnString
-	CreatedAt    postgres.ColumnTimestampz
-	UpdatedAt    postgres.ColumnTimestampz
-	MarkedBy     postgres.ColumnString
+	ID              postgres.ColumnInteger
+	EmployeeId      postgres.ColumnString
+	Date            postgres.ColumnDate
+	CheckInTime     postgres.ColumnTime
+	CheckOutTime    postgres.ColumnTime
+	Status          postgres.ColumnString
+	WorkHours       postgres.ColumnTime
+	Remarks         postgres.ColumnString
+	CreatedAt       postgres.ColumnTimestampz
+	UpdatedAt       postgres.ColumnTimestampz
+	MarkedBy        postgres.ColumnString
+	LateByMinutes   postgres.ColumnInteger
+	EarlyByMinutes  postgres.ColumnInteger
+	OvertimeMinutes postgres.ColumnInteger
+	Shift           postgres.ColumnString
 
 	AllColumns     postgres.ColumnList
 	MutableColumns postgres.ColumnList
@@ -69,37 +73,45 @@ func newAttendanceTable(schemaName, tableName, alias string) *AttendanceTable {
 
 func newAttendanceTableImpl(schemaName, tableName, alias string) attendanceTable {
 	var (
-		IDColumn           = postgres.IntegerColumn("id")
-		EmployeeIdColumn   = postgres.StringColumn("employeeId")
-		DateColumn         = postgres.DateColumn("date")
-		CheckInTimeColumn  = postgres.TimestampzColumn("checkInTime")
-		CheckOutTimeColumn = postgres.TimestampzColumn("checkOutTime")
-		StatusColumn       = postgres.StringColumn("status")
-		WorkHoursColumn    = postgres.FloatColumn("workHours")
-		RemarksColumn      = postgres.StringColumn("remarks")
-		CreatedAtColumn    = postgres.TimestampzColumn("createdAt")
-		UpdatedAtColumn    = postgres.TimestampzColumn("updatedAt")
-		MarkedByColumn     = postgres.StringColumn("markedBy")
-		allColumns         = postgres.ColumnList{IDColumn, EmployeeIdColumn, DateColumn, CheckInTimeColumn, CheckOutTimeColumn, StatusColumn, WorkHoursColumn, RemarksColumn, CreatedAtColumn, UpdatedAtColumn, MarkedByColumn}
-		mutableColumns     = postgres.ColumnList{EmployeeIdColumn, DateColumn, CheckInTimeColumn, CheckOutTimeColumn, StatusColumn, WorkHoursColumn, RemarksColumn, CreatedAtColumn, UpdatedAtColumn, MarkedByColumn}
-		defaultColumns     = postgres.ColumnList{IDColumn, DateColumn, StatusColumn, CreatedAtColumn, UpdatedAtColumn}
+		IDColumn              = postgres.IntegerColumn("id")
+		EmployeeIdColumn      = postgres.StringColumn("employeeId")
+		DateColumn            = postgres.DateColumn("date")
+		CheckInTimeColumn     = postgres.TimeColumn("checkInTime")
+		CheckOutTimeColumn    = postgres.TimeColumn("checkOutTime")
+		StatusColumn          = postgres.StringColumn("status")
+		WorkHoursColumn       = postgres.TimeColumn("workHours")
+		RemarksColumn         = postgres.StringColumn("remarks")
+		CreatedAtColumn       = postgres.TimestampzColumn("createdAt")
+		UpdatedAtColumn       = postgres.TimestampzColumn("updatedAt")
+		MarkedByColumn        = postgres.StringColumn("markedBy")
+		LateByMinutesColumn   = postgres.IntegerColumn("lateByMinutes")
+		EarlyByMinutesColumn  = postgres.IntegerColumn("earlyByMinutes")
+		OvertimeMinutesColumn = postgres.IntegerColumn("overtimeMinutes")
+		ShiftColumn           = postgres.StringColumn("shift")
+		allColumns            = postgres.ColumnList{IDColumn, EmployeeIdColumn, DateColumn, CheckInTimeColumn, CheckOutTimeColumn, StatusColumn, WorkHoursColumn, RemarksColumn, CreatedAtColumn, UpdatedAtColumn, MarkedByColumn, LateByMinutesColumn, EarlyByMinutesColumn, OvertimeMinutesColumn, ShiftColumn}
+		mutableColumns        = postgres.ColumnList{EmployeeIdColumn, DateColumn, CheckInTimeColumn, CheckOutTimeColumn, StatusColumn, WorkHoursColumn, RemarksColumn, CreatedAtColumn, UpdatedAtColumn, MarkedByColumn, LateByMinutesColumn, EarlyByMinutesColumn, OvertimeMinutesColumn, ShiftColumn}
+		defaultColumns        = postgres.ColumnList{IDColumn, DateColumn, StatusColumn, CreatedAtColumn, UpdatedAtColumn, LateByMinutesColumn, EarlyByMinutesColumn, OvertimeMinutesColumn}
 	)
 
 	return attendanceTable{
 		Table: postgres.NewTable(schemaName, tableName, alias, allColumns...),
 
 		//Columns
-		ID:           IDColumn,
-		EmployeeId:   EmployeeIdColumn,
-		Date:         DateColumn,
-		CheckInTime:  CheckInTimeColumn,
-		CheckOutTime: CheckOutTimeColumn,
-		Status:       StatusColumn,
-		WorkHours:    WorkHoursColumn,
-		Remarks:      RemarksColumn,
-		CreatedAt:    CreatedAtColumn,
-		UpdatedAt:    UpdatedAtColumn,
-		MarkedBy:     MarkedByColumn,
+		ID:              IDColumn,
+		EmployeeId:      EmployeeIdColumn,
+		Date:            DateColumn,
+		CheckInTime:     CheckInTimeColumn,
+		CheckOutTime:    CheckOutTimeColumn,
+		Status:          StatusColumn,
+		WorkHours:       WorkHoursColumn,
+		Remarks:         RemarksColumn,
+		CreatedAt:       CreatedAtColumn,
+		UpdatedAt:       UpdatedAtColumn,
+		MarkedBy:        MarkedByColumn,
+		LateByMinutes:   LateByMinutesColumn,
+		EarlyByMinutes:  EarlyByMinutesColumn,
+		OvertimeMinutes: OvertimeMinutesColumn,
+		Shift:           ShiftColumn,
 
 		AllColumns:     allColumns,
 		MutableColumns: mutableColumns,

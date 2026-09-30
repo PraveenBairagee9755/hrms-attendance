@@ -11,6 +11,7 @@ import (
 
 	. "github.com/go-jet/jet/v2/postgres"
 	"github.com/google/uuid"
+	"github.com/go-jet/jet/v2/postgres"
 )
 
 type LeaveUsage struct {
@@ -32,12 +33,11 @@ func NewRepository(db *sql.DB) *Repository {
 	}
 }
 
-// GetSalaryStructure returns the active salary structure
-// for an employee on the requested date.
+// GetSalaryStructure returns the latest salary structure
+// for an employee.
 func (r *Repository) GetSalaryStructure(
 	ctx context.Context,
 	employeeID string,
-	date time.Time,
 ) (*model.SalaryStructure, error) {
 
 	employeeUUID, err := uuid.Parse(employeeID)
@@ -47,29 +47,14 @@ func (r *Repository) GetSalaryStructure(
 
 	var salary model.SalaryStructure
 
-	employeeDate := Date(
-		date.Year(),
-		date.Month(),
-		date.Day(),
-	)
-
 	stmt := SELECT(
 		table.SalaryStructure.AllColumns,
 	).FROM(
 		table.SalaryStructure,
 	).WHERE(
-		table.SalaryStructure.EmployeeId.EQ(UUID(employeeUUID)).
-			AND(
-				table.SalaryStructure.EffectiveFrom.LT_EQ(employeeDate),
-			).
-			AND(
-				table.SalaryStructure.EffectiveTo.IS_NULL().
-					OR(
-						table.SalaryStructure.EffectiveTo.GT_EQ(employeeDate),
-					),
-			),
+		table.SalaryStructure.EmployeeId.EQ(UUID(employeeUUID)),
 	).ORDER_BY(
-		table.SalaryStructure.EffectiveFrom.DESC(),
+		table.SalaryStructure.CreatedAt.DESC(),
 	).LIMIT(1)
 
 	err = stmt.QueryContext(ctx, r.DB, &salary)
@@ -178,80 +163,107 @@ func (r *Repository) ImportSalaryStructure(
 		return fmt.Errorf("invalid employee ID: %w", err)
 	}
 
-	// Check for overlapping salary structures for the same employee.
-	var exists bool
-
-	err = r.DB.QueryRowContext(
-		ctx,
-		`
-		SELECT EXISTS (
-            SELECT 1
-            FROM public."SalaryStructure"
-            WHERE "employeeId" = $1
-              AND ("effectiveTo" IS NULL OR "effectiveTo" >= $2)
-              AND ($3::timestamp IS NULL OR "effectiveFrom" <= $3)
-        )
-        `,
-		employeeUUID,
-		data.EffectiveFrom,
-		data.EffectiveTo,
-	).Scan(&exists)
-
-	if err != nil {
-		return fmt.Errorf("failed to check existing salary structure: %w", err)
-	}
-
-	if exists {
-		return fmt.Errorf("salary structure already exists for employee %s with an overlapping effective period", data.EmployeeID)
-	}
-
 	now := time.Now()
-
 	salaryStructureID := uuid.New()
 
 	stmt := table.SalaryStructure.INSERT(
 		table.SalaryStructure.ID,
 		table.SalaryStructure.EmployeeId,
-		table.SalaryStructure.EffectiveFrom,
-		table.SalaryStructure.EffectiveTo,
-		table.SalaryStructure.BasicSalary,
-		table.SalaryStructure.Hra,
-		table.SalaryStructure.Allowances,
-		table.SalaryStructure.Deductions,
+		table.SalaryStructure.EmployeeName,
+		table.SalaryStructure.DateOfJoining,
+		table.SalaryStructure.CtcPerMonth,
+		table.SalaryStructure.DaysPaid,
+		table.SalaryStructure.Salary,
+		table.SalaryStructure.Late,
+		table.SalaryStructure.Incentive,
+		table.SalaryStructure.Conv,
+		table.SalaryStructure.Advance,
+		table.SalaryStructure.DeductionAmount,
+		table.SalaryStructure.AccountNo,
+		table.SalaryStructure.Ifsc,
+		table.SalaryStructure.PfDeduction,
+		table.SalaryStructure.PfUanNumber,
 		table.SalaryStructure.GrossSalary,
-		table.SalaryStructure.NetSalary,
-		table.SalaryStructure.Currency,
 		table.SalaryStructure.CreatedAt,
-		table.SalaryStructure.CreatedBy,
 		table.SalaryStructure.UpdatedAt,
 	).VALUES(
 		salaryStructureID,
 		employeeUUID,
-		Date(
-			data.EffectiveFrom.Year(),
-			data.EffectiveFrom.Month(),
-			data.EffectiveFrom.Day(),
-		),
-		data.EffectiveTo,
-		data.BasicSalary,
-		data.HRA,
-		data.Allowances,
-		data.Deductions,
+		data.EmployeeName,
+		data.DateOfJoining,
+		data.CtcPerMonth,
+		data.DaysPaid,
+		data.Salary,
+		data.Late,
+		data.Incentive,
+		data.Conv,
+		data.Advance,
+		data.DeductionAmount,
+		data.AccountNo,
+		data.Ifsc,
+		data.PfDeduction,
+		data.PfUanNumber,
 		data.GrossSalary,
-		data.NetSalary,
-		data.Currency,
 		now,
-		data.CreatedBy,
 		now,
 	)
 
 	_, err = stmt.ExecContext(ctx, r.DB)
+
 	if err != nil {
-		return fmt.Errorf(
-			"failed to import salary structure: %w",
-			err,
-		)
+		return fmt.Errorf("failed to import salary structure: %w", err)
 	}
 
 	return nil
+}
+
+func (r *Repository) GetSalaryDetails(
+    ctx context.Context,
+    employeeID string,
+) (*model.SalaryStructure, error) {
+
+    // Validate that employeeId is a UUID.
+    employeeUUID, err := uuid.Parse(employeeID)
+	if err != nil {
+        return nil, fmt.Errorf("invalid employee ID: %w", err)
+    }
+
+    var result model.SalaryStructure
+
+    stmt := table.SalaryStructure.
+        SELECT(
+            table.SalaryStructure.ID,
+            table.SalaryStructure.EmployeeId,
+            table.SalaryStructure.EmployeeName,
+            table.SalaryStructure.DateOfJoining,
+            table.SalaryStructure.CtcPerMonth,
+            table.SalaryStructure.DaysPaid,
+            table.SalaryStructure.Salary,
+            table.SalaryStructure.Late,
+            table.SalaryStructure.Incentive,
+            table.SalaryStructure.Conv,
+            table.SalaryStructure.Advance,
+            table.SalaryStructure.DeductionAmount,
+            table.SalaryStructure.AccountNo,
+            table.SalaryStructure.Ifsc,
+            table.SalaryStructure.PfDeduction,
+            table.SalaryStructure.PfUanNumber,
+            table.SalaryStructure.GrossSalary,
+            table.SalaryStructure.CreatedAt,
+            table.SalaryStructure.UpdatedAt,
+        ).
+        FROM(table.SalaryStructure).
+        WHERE(
+			table.SalaryStructure.EmployeeId.EQ(
+				postgres.UUID(employeeUUID),
+            ),
+        )
+
+    err = stmt.QueryContext(ctx, r.DB, &result)
+
+    if err != nil {
+        return nil, fmt.Errorf("salary details not found: %w", err)
+    }
+
+    return &result, nil
 }

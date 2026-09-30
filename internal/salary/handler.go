@@ -24,6 +24,10 @@ type CalculateSalaryRequest struct {
 	Month      int    `json:"month"`
 }
 
+type GetSalaryRequest struct {
+    EmployeeID string `json:"employeeId"`
+}
+
 // CalculateSalaryHandler calculates an employee's salary
 // after applying leave-limit and LOP deductions.
 func (h *Handler) CalculateSalaryHandler(c fiber.Ctx) error {
@@ -127,4 +131,34 @@ func (h *Handler) ImportSalaryStructureExcelHandler(c fiber.Ctx) error {
 		"failedRows":  failedRows,
 		"errors":      errorsList,
 	})
+}
+
+
+func (h *Handler) GetSalaryDetailsHandler(c fiber.Ctx) error {
+
+    var req GetSalaryRequest
+
+    if err := c.Bind().Body(&req); err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "success": false,
+            "message": "invalid request body",
+        })
+    }
+
+    salary, err := h.service.GetSalaryDetails(
+        c.Context(),
+        req.EmployeeID,
+    )
+
+    if err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "success": false,
+            "message": err.Error(),
+        })
+    }
+
+    return c.JSON(fiber.Map{
+        "success": true,
+        "data": salary,
+    })
 }
